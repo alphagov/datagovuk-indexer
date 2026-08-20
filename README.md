@@ -29,3 +29,26 @@ just init
 `just up`
 
 The project should now be running and accessible at TODO...
+
+### Environment variables
+
+TODO...
+
+
+## Basic Commands
+
+### Running tests with pytest
+
+`just test` - runs the tests under docker
+
+### View docker stack logs
+
+`just logs`
+
+### Rebuild the docker stack
+
+`just build`
+
+### Other common commands
+
+`just` should list out other common commands in the project
