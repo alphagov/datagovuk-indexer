@@ -1,1 +1,31 @@
 # datagovuk-indexer
+
+data.gov.uk opensearch indexer.
+
+
+## Running locally
+
+The following steps will explain how to run the application locally and get in to a state where pull requests can be opened to modify the project on github.
+They assume a user using Mac OSX.
+
+### Install docker desktop
+https://docs.docker.com/desktop/setup/install/mac-install/
+
+### Install justfile
+`just` is a simple way to save/run project-specific commands.  It's an alternative to `make` and the devs go in to the differences on the project homepage; https://github.com/casey/just
+
+```
+brew install just
+```
+
+### Initialise with justfile
+
+```
+just init
+```
+
+### Bring up the project under docker
+
+`just up`
+
+The project should now be running and accessible at TODO...
