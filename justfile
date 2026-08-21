@@ -7,7 +7,20 @@ default:
 
 # init: Initialise core dependencies for working on datagovuk-indexer
 init:
-    @echo "not implemented..."
+    @echo "Installing uv..."
+    brew install uv
+    @echo ""
+    @echo "Installing pre-commit..."
+    uv tool install pre-commit --with pre-commit-uv
+    @echo ""
+    @echo "Initialising pre-commit..."
+    pre-commit install
+    @echo ""
+    @echo "Copying overrides envfile if target does not exist..."
+    @test -f .envs/.local-overrides || cp .envs/.local-overrides.example .envs/.local-overrides
+    @echo ""
+    @echo "datagovuk-indexer install is initialised for local development. Bringing up the containers with '$ just up'"
+    just up
 
 # build: Build python image.
 build *args:
