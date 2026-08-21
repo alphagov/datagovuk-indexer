@@ -38,8 +38,13 @@ prune *args:
 logs *args:
     @docker compose logs -f {{args}}
 
+# shell: Get a python shell on indexer
+shell:
+    @docker compose run --rm indexer python
+
+# bash: Get a bash shell on indexer
 bash:
-    echo "not implemented..."
+    @docker compose run --rm indexer bash
 
 # run: Executes docker compose run command
 run +args:
