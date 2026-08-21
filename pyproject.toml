@@ -1,0 +1,82 @@
+[project]
+name = "datagovuk-indexer"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "opensearch-py==3.2.0",
+    "psycopg[binary]==3.3.4",
+]
+
+[tool.uv]
+add-bounds = "exact"
+
+[tool.ruff]
+line-length = 120
+# Exclude a variety of commonly ignored directories.
+extend-exclude = [
+  "*/migrations/*.py",
+  "staticfiles/*",
+]
+lint.select = [
+  "A",
+  "ASYNC",
+  "B",
+  "BLE",
+  "C4",
+  "C90",
+  "COM",
+  "DJ",
+  "DTZ",
+  "E",
+  "EM",
+  "ERA",
+  "EXE",
+  "F",
+  "FA",
+  "FBT",
+  "FLY",
+  "G",
+  "I",
+  "ICN",
+  "INP",
+  "INT",
+  "ISC",
+  "N",
+  "PD",
+  "PERF",
+  "PGH",
+  "PIE",
+  "PL",
+  "PT",
+  "PTH",
+  "PYI",
+  "Q",
+  "RET",
+  "RSE",
+  "RUF",
+  "S",
+  "SIM",
+  "SLF",
+  "SLOT",
+  "T10",
+  "T20",
+  "TC",
+  "TID",
+  "TRY",
+  "UP",
+  "W",
+  "YTT",
+]
+lint.ignore = [
+  "RET504", # Let the code be self documenting
+  "RUF012", # Mutable class attributes should be annotated with `typing.ClassVar`
+  "S101",   # Use of assert detected https://docs.astral.sh/ruff/rules/assert/
+  "SIM102", # sometimes it's better to nest
+  # of types for comparison.
+  # Deactivated because it can make the code slow:
+  # https://github.com/astral-sh/ruff/issues/7871
+]
+lint.isort.combine-as-imports = true
+lint.isort.force-single-line = false
