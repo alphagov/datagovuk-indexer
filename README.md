@@ -28,7 +28,10 @@ just init
 
 `just up`
 
-The project should now be running and accessible at TODO...
+The docker containers should now all be running.
+
+Go to http://localhost:5601/ - you should see a dashboard for opensearch.
+`just shell` starts a python shell on the indexer container.
 
 ### Environment variables
 
