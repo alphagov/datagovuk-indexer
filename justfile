@@ -19,8 +19,17 @@ init:
     @echo "Copying overrides envfile if target does not exist..."
     @test -f .envs/.local-overrides || cp .envs/.local-overrides.example .envs/.local-overrides
     @echo ""
+    @echo "Installing libpq..."
+    brew install libpq
+    @echo ""
     @echo "datagovuk-indexer install is initialised for local development. Bringing up the containers with '$ just up'"
     just up
+
+# load-db: Load a postgres dump image in to the docker container
+load-db +args:
+    psql "postgresql://postgres:postgres_password@127.0.0.1:5432/ckan" -c "CREATE EXTENSION IF NOT EXISTS postgis;"
+    @echo "Loading ckan backup file...  This could take a while (~1 hour+)"
+    pg_restore -d "postgresql://postgres:postgres_password@127.0.0.1:5432/ckan" -j 8 --no-owner --no-privileges {{args}}
 
 # build: Build python image.
 build *args:
@@ -54,6 +63,10 @@ logs *args:
 # shell: Get a python shell on indexer
 shell:
     @docker compose run --rm indexer python
+
+# dbshell: Get a psql shell on ckan DB
+dbshell:
+    psql "postgresql://postgres:postgres_password@127.0.0.1:5432/ckan"
 
 # bash: Get a bash shell on indexer
 bash:
