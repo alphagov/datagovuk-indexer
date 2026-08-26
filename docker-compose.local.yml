@@ -19,8 +19,9 @@ services:
       - postgres
 
   postgres:
-    image: postgres:16-alpine
+    image: postgis/postgis:14-3.5-alpine
     container_name: postgres_db
+    platform: linux/amd64
     restart: always
     environment:
       POSTGRES_DB: ckan
