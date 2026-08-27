@@ -61,12 +61,13 @@ def configure_mappings():
     logger.info("Index template '%s' configured.", template_name)
 
 
-async def fetch_documents(conn: psycopg.AsyncConnection, index_name, row_limit=None):
+async def fetch_ckan_documents(conn: psycopg.AsyncConnection, index_name, row_limit=None):
     query = """
         SELECT
             p.id,
             p.title
         FROM package p
+        WHERE state='active'
     """
     if row_limit:
         query += f"""
@@ -98,7 +99,7 @@ async def _index_ckan(index_name, row_limit=None):
         failure_count = 0
         async for success, info in helpers.async_streaming_bulk(
             client=opensearch_client,
-            actions=fetch_documents(pg_conn, index_name, row_limit=row_limit),
+            actions=fetch_ckan_documents(pg_conn, index_name, row_limit=row_limit),
             chunk_size=config.POSTGRES_BATCH_SIZE,
             max_chunk_bytes=10 * 1024 * 1024,  # 10 MB chunk limit
             raise_on_error=False,
@@ -123,8 +124,9 @@ def index_ckan(row_limit=None):
     index_name = f"{config.DATASETS_INDEX['name']}-{index_suffix}"
     index_results = asyncio.run(_index_ckan(index_name=index_name, row_limit=row_limit))
     if index_results["success_count"] == 0:
-        logger.error("Indexing was not successful!")
+        logger.error("No documents were indexed! Exiting before pointing alias to new index...")
         return
+    logger.info("Switching alias to new index...")
     opensearch_client = get_client()
     alias_body = {
         "actions": [
@@ -133,3 +135,12 @@ def index_ckan(row_limit=None):
         ],
     }
     opensearch_client.indices.update_aliases(body=alias_body)
+    logger.info("Alias updated.")
+
+
+def clear_opensearch():
+    opensearch_client = get_client()
+    datasets_prefix = f"{config.DATASETS_INDEX['name']}-"
+    opensearch_client.indices.delete(index=f"{datasets_prefix}*")
+    template_name = f"{datasets_prefix}template"
+    opensearch_client.indices.delete_index_template(name=template_name)
