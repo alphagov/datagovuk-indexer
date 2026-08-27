@@ -139,8 +139,11 @@ def index_ckan(row_limit=None):
 
 
 def clear_opensearch():
+    logger.info("Clearing indeces...")
     opensearch_client = get_client()
     datasets_prefix = f"{config.DATASETS_INDEX['name']}-"
     opensearch_client.indices.delete(index=f"{datasets_prefix}*")
+    logger.info("Clearing index templates...")
     template_name = f"{datasets_prefix}template"
     opensearch_client.indices.delete_index_template(name=template_name)
+    logger.info("Clearing opensearch complete.")
