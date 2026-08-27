@@ -80,6 +80,10 @@ index *args:
 clear:
     @docker compose run --rm indexer uv run python indexer/cli.py clear
 
+# dump-ckan-schema: Dump ckan's schema in to a local SQL file
+dump-ckan-schema:
+    pg_dump --dbname="postgresql://postgres:postgres_password@127.0.0.1:5432/ckan" --schema-only > ckan_schema.sql
+
 # run: Executes docker compose run command
 run +args:
     @docker compose run --rm {{args}}
