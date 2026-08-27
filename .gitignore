@@ -220,3 +220,5 @@ __marimo__/
 .envs/.local-overrides
 
 *.swo
+
+ckan_schema.sql
