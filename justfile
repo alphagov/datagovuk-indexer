@@ -78,7 +78,12 @@ run +args:
 
 # test: Run pytest
 test *args:
-    echo "not implemented..."
+    @docker compose exec indexer pytest {{args}}
+
+# coverage: Run python coverage
+coverage:
+    @docker compose exec indexer coverage run -m pytest
+    @docker compose exec indexer coverage html
 
 # lint: Run pre-commit checks without the commit
 lint *args:
