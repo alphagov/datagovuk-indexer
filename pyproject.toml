@@ -9,8 +9,15 @@ classifiers = [
   "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
+  "django-environ==0.14",
   "opensearch-py==3.2",
   "psycopg[binary]==3.3.4",
+]
+
+[dependency-groups]
+dev = [
+  "coverage==7.15.4",
+  "pytest==9.1.1",
 ]
 
 [tool.uv]
@@ -84,3 +91,8 @@ lint.ignore = [
 ]
 lint.isort.combine-as-imports = true
 lint.isort.force-single-line = false
+
+[tool.coverage]
+# ==== Coverage ====
+run.include = [ "indexer/**" ]
+run.omit = [ "*/conftest.py", "*/tests/*" ]
