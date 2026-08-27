@@ -15,8 +15,10 @@ services:
         required: false
     command: tail -f /dev/null
     depends_on:
-      - opensearch
-      - postgres
+      opensearch:
+        condition: service_healthy
+      postgres:
+        condition: service_started
 
   postgres:
     image: postgis/postgis:14-3.5-alpine
@@ -53,6 +55,12 @@ services:
         hard: 65536
     volumes:
       - opensearch_data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -f http://localhost:9200/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   opensearch-dashboards:
     image: opensearchproject/opensearch-dashboards:latest
