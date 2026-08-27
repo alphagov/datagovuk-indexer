@@ -28,4 +28,44 @@ jobs:
       - name: Run pre-commit
         uses: pre-commit/action@v3.0.1
 
-  # TODO: Add pytest later...
+  pytest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4.2.0
+
+      - name: Build and cache local backend
+        uses: docker/bake-action@v7.3.0
+        with:
+          push: false
+          load: true
+          files: docker-compose.local.yml
+          targets: indexer
+          set: |
+            indexer.cache-from=type=gha,scope=indexer-${{ github.ref_name }}
+            indexer.cache-from=type=gha,scope=indexer-main
+            indexer.cache-to=type=gha,scope=indexer-${{ github.ref_name }},mode=max
+
+      - name: Run Unit Tests with coverage
+        run: |
+          docker compose -f docker-compose.local.yml up -d
+          docker compose -f docker-compose.local.yml exec indexer coverage run -m pytest
+          docker compose -f docker-compose.local.yml exec indexer coverage html
+
+      - name: Upload artifacts
+        if: success()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-artifacts
+          path: htmlcov
+
+      - name: Fail under 100% coverage
+        run: |
+          docker compose -f docker-compose.local.yml run indexer coverage report --fail-under=100
+
+      - name: Tear down the Stack
+        run: docker compose -f docker-compose.local.yml down
