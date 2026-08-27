@@ -72,6 +72,14 @@ dbshell:
 bash:
     @docker compose run --rm indexer bash
 
+# index: Index ckan postgres DB to opensearch
+index *args:
+    @docker compose run --rm indexer uv run python indexer/cli.py index {{args}}
+
+# opensearch-clear: Clean opensearch indeces, templates, aliases
+clear:
+    @docker compose run --rm indexer uv run python indexer/cli.py clear
+
 # run: Executes docker compose run command
 run +args:
     @docker compose run --rm {{args}}
