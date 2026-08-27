@@ -10,7 +10,7 @@ classifiers = [
 ]
 dependencies = [
   "django-environ==0.14",
-  "opensearch-py==3.2",
+  "opensearch-py[async]==3.2",
   "psycopg[binary]==3.3.4",
 ]
 

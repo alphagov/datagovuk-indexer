@@ -1,6 +1,10 @@
+import asyncio
+from datetime import UTC, datetime
 from logging import getLogger
 
-from opensearchpy import OpenSearch
+import psycopg
+from opensearchpy import AsyncOpenSearch, OpenSearch, helpers
+from psycopg.rows import dict_row
 
 from config import config
 
@@ -55,3 +59,77 @@ def configure_mappings():
     template_name = f"{datasets_prefix}template"
     client.indices.put_index_template(name=template_name, body=datasets_template)
     logger.info("Index template '%s' configured.", template_name)
+
+
+async def fetch_documents(conn: psycopg.AsyncConnection, index_name, row_limit=None):
+    query = """
+        SELECT
+            p.id,
+            p.title
+        FROM package p
+    """
+    if row_limit:
+        query += f"""
+        LIMIT {row_limit}
+        """
+    async with conn.cursor(name="package_stream_cursor") as cursor:
+        cursor.itersize = config.POSTGRES_BATCH_SIZE
+        await cursor.execute(query)
+
+        async for row in cursor:
+            yield {
+                "_index": index_name,
+                "_id": str(row["id"]),
+                "_source": {
+                    "uuid": row["id"],
+                    "title": row["title"],
+                },
+            }
+
+
+async def _index_ckan(index_name, row_limit=None):
+    # Connect using psycopg3's AsyncConnection with dictionary row mapping
+    async with await psycopg.AsyncConnection.connect(config.POSTGRES_DSN, row_factory=dict_row) as pg_conn:
+        opensearch_client = AsyncOpenSearch(hosts=[config.OPENSEARCH_URL])
+
+        logger.info("Starting streaming pipeline from Postgres (psycopg3) to OpenSearch...")
+
+        success_count = 0
+        failure_count = 0
+        async for success, info in helpers.async_streaming_bulk(
+            client=opensearch_client,
+            actions=fetch_documents(pg_conn, index_name, row_limit=row_limit),
+            chunk_size=config.POSTGRES_BATCH_SIZE,
+            max_chunk_bytes=10 * 1024 * 1024,  # 10 MB chunk limit
+            raise_on_error=False,
+        ):
+            if success:
+                success_count += 1
+            else:
+                failure_count += 1
+                logger.warning("Failed to index document: %s", info)
+
+        logger.info("Indexing complete! Successfully indexed %s documents.", success_count)
+
+        await opensearch_client.close()
+        return {
+            "success_count": success_count,
+            "failure_count": failure_count,
+        }
+
+
+def index_ckan(row_limit=None):
+    index_suffix = datetime.now(tz=UTC).replace(microsecond=0).isoformat().replace(":", ".").replace("T", "t")
+    index_name = f"{config.DATASETS_INDEX['name']}-{index_suffix}"
+    index_results = asyncio.run(_index_ckan(index_name=index_name, row_limit=row_limit))
+    if index_results["success_count"] == 0:
+        logger.error("Indexing was not successful!")
+        return
+    opensearch_client = get_client()
+    alias_body = {
+        "actions": [
+            {"remove": {"index": "*", "alias": config.DATASETS_INDEX["name"]}},
+            {"add": {"index": index_name, "alias": config.DATASETS_INDEX["name"]}},
+        ],
+    }
+    opensearch_client.indices.update_aliases(body=alias_body)
