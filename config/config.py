@@ -11,3 +11,6 @@ DATASETS_INDEX = {
     },
     "priority": 100,
 }
+
+POSTGRES_DSN = env("POSTGRES_DSN", default=None)
+POSTGRES_BATCH_SIZE = 2000
