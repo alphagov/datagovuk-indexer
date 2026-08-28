@@ -61,4 +61,4 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync
 
 ENV PATH="/${VIRTUAL_ENV}/bin:$PATH"
-ENV PYTHONPATH="${VIRTUAL_ENV}/lib/python3.14/site-packages"
+ENV PYTHONPATH="${VIRTUAL_ENV}/lib/python3.14/site-packages:/app"
