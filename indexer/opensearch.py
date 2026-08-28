@@ -106,7 +106,9 @@ async def _index_ckan(index_name, row_limit=None):
         ):
             if success:
                 success_count += 1
-            else:
+            else:  # pragma: no cover
+                # TODO: Remove pragma:no cover above when the mapping gets more complex;
+                #   it's currently too tricky to trigger this without lots of mocking
                 failure_count += 1
                 logger.warning("Failed to index document: %s", info)
 
@@ -125,7 +127,7 @@ def index_ckan(row_limit=None):
     index_results = asyncio.run(_index_ckan(index_name=index_name, row_limit=row_limit))
     if index_results["success_count"] == 0:
         logger.error("No documents were indexed! Exiting before pointing alias to new index...")
-        return
+        return index_results["success_count"]
     logger.info("Switching alias to new index...")
     opensearch_client = get_client()
     alias_body = {
@@ -136,6 +138,7 @@ def index_ckan(row_limit=None):
     }
     opensearch_client.indices.update_aliases(body=alias_body)
     logger.info("Alias updated.")
+    return index_results["success_count"]
 
 
 def clear_opensearch():
