@@ -1,7 +1,11 @@
+import psycopg
 import pytest
 from opensearchpy import OpenSearch
 
 from config import config
+from indexer import opensearch
+
+from .factories import create_package
 
 
 @pytest.fixture
@@ -47,3 +51,41 @@ def opensearch_client(opensearch_url, clear_opensearch):
     clear_opensearch(client)
     yield client
     clear_opensearch(client)
+
+
+@pytest.fixture
+def configured_opensearch_client(opensearch_client):
+    opensearch.configure_mappings()
+    return opensearch_client
+
+
+@pytest.fixture
+def postgres_dsn():
+    return config.POSTGRES_DSN + "-test"
+
+
+@pytest.fixture(autouse=True)
+def override_postgres_settings(postgres_dsn, ckan_connection):
+    # Ensure that our tests all operate on a test postgres DB
+    old_dsn = config.POSTGRES_DSN
+    config.POSTGRES_DSN = postgres_dsn
+    yield
+    config.POSTGRES_DSN = old_dsn
+    cursor = ckan_connection.cursor()
+    cursor.execute("TRUNCATE TABLE package;")
+
+
+@pytest.fixture
+def ckan_connection(postgres_dsn):
+    connection = psycopg.connect(postgres_dsn, autocommit=True)
+    yield connection
+    connection.close()
+
+
+@pytest.fixture
+def package_factory(ckan_connection):
+    def _create(**kwargs):
+        package = create_package(ckan_connection, **kwargs)
+        return package
+
+    return _create
