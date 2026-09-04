@@ -37,7 +37,7 @@ services:
       - ./docker/postgres/ckan-schema.sql:/schema/ckan-schema.sql:ro
 
   opensearch:
-    image: opensearchproject/opensearch:3.7.0
+    image: opensearchproject/opensearch:3.8.0
     container_name: opensearch_node
     restart: always
     environment:
