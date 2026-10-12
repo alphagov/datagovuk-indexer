@@ -1,3 +1,16 @@
+CREATE TABLE public."group" (
+    id text NOT NULL,
+    name text NOT NULL,
+    title text,
+    description text,
+    created timestamp without time zone,
+    state text,
+    type text NOT NULL,
+    approval_status text,
+    image_url text,
+    is_organization boolean DEFAULT false
+);
+
 CREATE TABLE public.package (
     id text NOT NULL,
     name character varying(100) NOT NULL,

@@ -73,6 +73,7 @@ def override_postgres_settings(postgres_dsn, ckan_connection):
     config.POSTGRES_DSN = old_dsn
     cursor = ckan_connection.cursor()
     cursor.execute("TRUNCATE TABLE package;")
+    cursor.execute('TRUNCATE TABLE "group";')
 
 
 @pytest.fixture

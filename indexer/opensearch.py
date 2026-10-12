@@ -63,6 +63,23 @@ def configure_mappings():
                             "english": {"type": "text", "analyzer": "english"},
                         },
                     },
+                    "organisations": {
+                        "type": "object",
+                        "properties": {
+                            "uuid": {"type": "keyword"},
+                            "slug": {
+                                "type": "keyword",
+                                "normalizer": "lowercase_normalizer",
+                            },
+                            "name": {
+                                "type": "text",
+                                "fields": {
+                                    "keyword": {"type": "keyword", "ignore_above": 256},
+                                    "english": {"type": "text", "analyzer": "english"},
+                                },
+                            },
+                        },
+                    },
                     "created_at": {"type": "date"},
                     "updated_at": {"type": "date"},
                 },
@@ -84,9 +101,13 @@ async def fetch_ckan_documents(conn: psycopg.AsyncConnection, index_name, row_li
             p.title,
             p.notes,
             p.metadata_created,
-            p.metadata_modified
-        FROM package p
-        WHERE state='active'
+            p.metadata_modified,
+            org.name AS org_slug,
+            org.id AS org_id,
+            org.title AS org_name
+        FROM package AS p
+        INNER JOIN "group" AS org ON p.owner_org=org.id
+        WHERE p.state='active'
     """
     if row_limit:
         query += f"""
@@ -108,6 +129,13 @@ async def fetch_ckan_documents(conn: psycopg.AsyncConnection, index_name, row_li
                     "description": stripped_description,
                     "created_at": row["metadata_created"],
                     "updated_at": row["metadata_modified"],
+                    "organisations": [
+                        {
+                            "uuid": row["org_id"],
+                            "name": row["org_name"],
+                            "slug": row["org_slug"],
+                        },
+                    ],
                 },
             }
 
