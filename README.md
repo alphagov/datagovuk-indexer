@@ -33,9 +33,35 @@ The docker containers should now all be running.
 Go to http://localhost:5601/ - you should see a dashboard for opensearch.
 `just shell` starts a python shell on the indexer container.
 
-### Environment variables
+### Indexing CKAN datasets to opensearch
 
-TODO...
+You will need a DB dump from S3.  On the ndl-integration account, go to the web console.
+- go to S3
+- integration-account-ckan-backup
+- ckan-postgres
+
+Download the latest backup `.gz` file.
+
+```
+just load-db <path_to_db_dump.gz>
+```
+
+Note this is likely to take around 1H or so.
+
+Now that we have a ckan postgres instance running and populated, we can index the data in to opensearch;
+
+```
+just index
+```
+
+This will take a few seconds.
+
+The data should now be browsable on the opensearch dashboard, in a browser do the follwing steps;
+
+- Go to the opensearch dashboard; http://localhost:5601/app/management/opensearch-dashboards/indexPatterns
+- Click "Create index pattern"
+- Enter "datasets-*" as the index pattern name and create the pattern
+- Go to http://localhost:5601/app/data-explorer/discover - you should see opensearch documents for all datasets!
 
 
 ## Basic Commands
