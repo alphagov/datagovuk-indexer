@@ -7,6 +7,7 @@ from opensearchpy import AsyncOpenSearch, OpenSearch, helpers
 from psycopg.rows import dict_row
 
 from config import config
+from indexer import utils
 
 logger = getLogger(__file__)
 
@@ -49,6 +50,19 @@ def configure_mappings():
                             "english": {"type": "text", "analyzer": "english"},
                         },
                     },
+                    "description_raw": {
+                        "type": "text",
+                        "fields": {
+                            "keyword": {"type": "keyword", "ignore_above": 256},
+                        },
+                    },
+                    "description": {
+                        "type": "text",
+                        "fields": {
+                            "keyword": {"type": "keyword", "ignore_above": 256},
+                            "english": {"type": "text", "analyzer": "english"},
+                        },
+                    },
                 },
             },
         },
@@ -65,7 +79,8 @@ async def fetch_ckan_documents(conn: psycopg.AsyncConnection, index_name, row_li
     query = """
         SELECT
             p.id,
-            p.title
+            p.title,
+            p.notes
         FROM package p
         WHERE state='active'
     """
@@ -78,12 +93,15 @@ async def fetch_ckan_documents(conn: psycopg.AsyncConnection, index_name, row_li
         await cursor.execute(query)
 
         async for row in cursor:
+            stripped_description = await utils.strip_markdown_and_html(row["notes"])
             yield {
                 "_index": index_name,
                 "_id": str(row["id"]),
                 "_source": {
                     "uuid": row["id"],
                     "title": row["title"],
+                    "description_raw": row["notes"],
+                    "description": stripped_description,
                 },
             }
 
