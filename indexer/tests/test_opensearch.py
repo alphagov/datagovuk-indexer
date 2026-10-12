@@ -46,11 +46,13 @@ def test_index_ckan_active_packages_indexed_correctly(
     assert indexed_package_1["description_raw"] == active_package_1["notes"]
     assert indexed_package_1["created_at"] == active_package_1["metadata_created"].replace(tzinfo=None).isoformat()
     assert indexed_package_1["updated_at"] == active_package_1["metadata_modified"].replace(tzinfo=None).isoformat()
+    assert indexed_package_1["organisations"][0]["uuid"] == active_package_1["owner_org"]
     indexed_package_2 = opensearch_client.get(index=opensearch_datasets_name, id=str(active_package_2["id"]))["_source"]
     assert indexed_package_2["title"] == active_package_2["title"]
     assert indexed_package_2["description_raw"] == active_package_2["notes"]
     assert indexed_package_2["created_at"] == active_package_2["metadata_created"].replace(tzinfo=None).isoformat()
     assert indexed_package_2["updated_at"] == active_package_2["metadata_modified"].replace(tzinfo=None).isoformat()
+    assert indexed_package_2["organisations"][0]["uuid"] == active_package_2["owner_org"]
     with pytest.raises(opensearchpy.exceptions.NotFoundError):
         opensearch_client.get(index=opensearch_datasets_name, id=str(deleted_package["id"]))
 
