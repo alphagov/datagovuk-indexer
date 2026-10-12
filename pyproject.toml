@@ -11,12 +11,12 @@ classifiers = [
 dependencies = [
   "django-environ==0.14",
   "opensearch-py[async]==3.2",
-  "psycopg[binary]==3.3.4",
+  "psycopg[binary]==3.3.6",
 ]
 
 [dependency-groups]
 dev = [
-  "coverage==7.15.4",
+  "coverage==7.16.2",
   "factory-boy==3.3.3",
   "freezegun==1.5.5",
   "pytest==9.1.1",
