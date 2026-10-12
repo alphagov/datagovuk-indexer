@@ -63,6 +63,8 @@ def configure_mappings():
                             "english": {"type": "text", "analyzer": "english"},
                         },
                     },
+                    "created_at": {"type": "date"},
+                    "updated_at": {"type": "date"},
                 },
             },
         },
@@ -80,7 +82,9 @@ async def fetch_ckan_documents(conn: psycopg.AsyncConnection, index_name, row_li
         SELECT
             p.id,
             p.title,
-            p.notes
+            p.notes,
+            p.metadata_created,
+            p.metadata_modified
         FROM package p
         WHERE state='active'
     """
@@ -102,6 +106,8 @@ async def fetch_ckan_documents(conn: psycopg.AsyncConnection, index_name, row_li
                     "title": row["title"],
                     "description_raw": row["notes"],
                     "description": stripped_description,
+                    "created_at": row["metadata_created"],
+                    "updated_at": row["metadata_modified"],
                 },
             }
 
