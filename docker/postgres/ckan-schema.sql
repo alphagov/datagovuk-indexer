@@ -1,3 +1,9 @@
+/*
+    A subset of ckan's full postgres schema; used purely for creating a test
+    database for the purposes of our unit/integration tests where we need to create
+    data in ckan and ingest it in to opensearch using the ingestion script.
+*/
+
 CREATE TABLE public."group" (
     id text NOT NULL,
     name text NOT NULL,
