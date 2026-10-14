@@ -38,9 +38,11 @@ def test_index_ckan_active_packages_indexed_correctly(
     configured_opensearch_client,
     opensearch_datasets_name,
 ):
-    active_package_1 = package_factory()
-    active_package_2 = package_factory()
-    deleted_package = package_factory(state="deleted")
+    active_package_1, active_org_1 = package_factory()
+
+    active_package_2, active_org_2 = package_factory()
+
+    deleted_package, _ = package_factory(state="deleted")
     opensearch_client = configured_opensearch_client
 
     opensearch.index_ckan()
@@ -51,12 +53,16 @@ def test_index_ckan_active_packages_indexed_correctly(
     assert indexed_package_1["created_at"] == _get_utc(active_package_1["metadata_created"]).isoformat()
     assert indexed_package_1["updated_at"] == _get_utc(active_package_1["metadata_modified"]).isoformat()
     assert indexed_package_1["organisations"][0]["uuid"] == active_package_1["owner_org"]
+    assert indexed_package_1["organisations"][0]["slug"] == active_org_1["name"]
+    assert indexed_package_1["organisations"][0]["name"] == active_org_1["title"]
     indexed_package_2 = opensearch_client.get(index=opensearch_datasets_name, id=str(active_package_2["id"]))["_source"]
     assert indexed_package_2["title"] == active_package_2["title"]
     assert indexed_package_2["description_raw"] == active_package_2["notes"]
     assert indexed_package_2["created_at"] == _get_utc(active_package_2["metadata_created"]).isoformat()
     assert indexed_package_2["updated_at"] == _get_utc(active_package_2["metadata_modified"]).isoformat()
     assert indexed_package_2["organisations"][0]["uuid"] == active_package_2["owner_org"]
+    assert indexed_package_2["organisations"][0]["slug"] == active_org_2["name"]
+    assert indexed_package_2["organisations"][0]["name"] == active_org_2["title"]
     with pytest.raises(opensearchpy.exceptions.NotFoundError):
         opensearch_client.get(index=opensearch_datasets_name, id=str(deleted_package["id"]))
 
@@ -66,8 +72,8 @@ def test_index_ckan_with_row_limit_package_indexed_correctly(
     configured_opensearch_client,
     opensearch_datasets_name,
 ):
-    active_package_1 = package_factory()
-    active_package_2 = package_factory()
+    active_package_1, _ = package_factory()
+    active_package_2, _ = package_factory()
     opensearch_client = configured_opensearch_client
 
     opensearch.index_ckan(row_limit=1)

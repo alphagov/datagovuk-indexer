@@ -66,4 +66,4 @@ def create_package(ckan_connection, **kwargs):
     cursor = ckan_connection.cursor()
     insert_postgres_row(cursor=cursor, data=organisation, table_name="group")
     insert_postgres_row(cursor=cursor, data=package, table_name="package")
-    return package
+    return package, organisation
