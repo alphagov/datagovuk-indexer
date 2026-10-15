@@ -85,7 +85,7 @@ def test_index_ckan_and_collections_indexed_correctly(
     configured_opensearch_client,
     opensearch_datasets_name,
 ):
-    active_package = package_factory()
+    active_package, _ = package_factory()
     mock_get_all_collections.return_value = [collection_factory]
     opensearch_client = configured_opensearch_client
     suffix = "test"
@@ -97,8 +97,8 @@ def test_index_ckan_and_collections_indexed_correctly(
     ]
     assert indexed_package["title"] == active_package["title"]
     assert indexed_package["description_raw"] == active_package["notes"]
-    assert indexed_package["created_at"] == active_package["metadata_created"].replace(tzinfo=None).isoformat()
-    assert indexed_package["updated_at"] == active_package["metadata_modified"].replace(tzinfo=None).isoformat()
+    assert indexed_package["created_at"] == _get_utc(active_package["metadata_created"]).isoformat()
+    assert indexed_package["updated_at"] == _get_utc(active_package["metadata_modified"]).isoformat()
     assert indexed_package["organisations"][0]["uuid"] == active_package["owner_org"]
 
     indexed_collection = opensearch_client.get(
@@ -118,7 +118,7 @@ def test_index_ckan_and_collections_with_no_collections(
     configured_opensearch_client,
     opensearch_datasets_name,
 ):
-    active_package = package_factory()
+    active_package, _ = package_factory()
     mock_get_all_collections.return_value = []
     opensearch_client = configured_opensearch_client
     suffix = "test"
@@ -130,8 +130,8 @@ def test_index_ckan_and_collections_with_no_collections(
     ]
     assert indexed_package["title"] == active_package["title"]
     assert indexed_package["description_raw"] == active_package["notes"]
-    assert indexed_package["created_at"] == active_package["metadata_created"].replace(tzinfo=None).isoformat()
-    assert indexed_package["updated_at"] == active_package["metadata_modified"].replace(tzinfo=None).isoformat()
+    assert indexed_package["created_at"] == _get_utc(active_package["metadata_created"]).isoformat()
+    assert indexed_package["updated_at"] == _get_utc(active_package["metadata_modified"]).isoformat()
     assert indexed_package["organisations"][0]["uuid"] == active_package["owner_org"]
 
 

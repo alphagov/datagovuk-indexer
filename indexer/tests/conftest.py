@@ -86,8 +86,7 @@ def ckan_connection(postgres_dsn):
 @pytest.fixture
 def package_factory(ckan_connection):
     def _create(**kwargs):
-        package = create_package(ckan_connection, **kwargs)
-        return package
+        return create_package(ckan_connection, **kwargs)
 
     return _create
 
