@@ -1,7 +1,6 @@
 import argparse
 import logging
 import sys
-from datetime import UTC, datetime
 
 from indexer.opensearch import clear_opensearch, configure_mappings, index_ckan_and_collections
 
@@ -30,8 +29,7 @@ def main():
 
     if args.operation == "index":
         configure_mappings()
-        suffix = datetime.now(tz=UTC).replace(microsecond=0).isoformat().replace(":", ".").replace("T", "t")
-        index_ckan_and_collections(row_limit=args.row_limit, suffix=suffix)
+        index_ckan_and_collections(row_limit=args.row_limit)
     elif args.operation == "clear":
         clear_opensearch()
 

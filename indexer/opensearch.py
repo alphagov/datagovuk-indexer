@@ -1,4 +1,5 @@
 import asyncio
+from datetime import UTC, datetime
 from logging import getLogger
 
 import psycopg
@@ -196,8 +197,7 @@ def index_collections(index_name, row_limit=None):
     return success_count
 
 
-def index_ckan(suffix, row_limit=None):
-    index_name = f"{config.DATASETS_INDEX['name']}-{suffix}"
+def index_ckan(index_name, row_limit=None):
     logger.info("Indexing ckan datasets")
     results = asyncio.run(_index_ckan(index_name=index_name, row_limit=row_limit))
     logger.info("Successfully Indexed %s ckan documents.", results["success_count"])
@@ -209,10 +209,12 @@ def index_ckan(suffix, row_limit=None):
 
 
 def index_ckan_and_collections(row_limit=None, suffix=None):
+    if suffix is None:
+        suffix = datetime.now(tz=UTC).replace(microsecond=0).isoformat().replace(":", ".").replace("T", "t")
     index_name = f"{config.DATASETS_INDEX['name']}-{suffix}"
 
     collections_success_count = index_collections(index_name=index_name, row_limit=row_limit)
-    ckan_success_count = index_ckan(suffix=suffix, row_limit=row_limit)
+    ckan_success_count = index_ckan(index_name=index_name, row_limit=row_limit)
 
     if collections_success_count + ckan_success_count == 0:
         logger.error("No documents were indexed! Exiting before pointing alias to new index...")

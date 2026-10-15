@@ -48,7 +48,7 @@ def test_index_ckan_active_packages_indexed_correctly(
     opensearch_client = configured_opensearch_client
     suffix = "test"
 
-    opensearch.index_ckan(suffix=suffix)
+    opensearch.index_ckan(index_name=f"{opensearch_datasets_name}-{suffix}")
 
     indexed_package_1 = opensearch_client.get(
         index=f"{opensearch_datasets_name}-{suffix}",
@@ -146,7 +146,7 @@ def test_index_ckan_with_row_limit_package_indexed_correctly(
     opensearch_client = configured_opensearch_client
     suffix = "test"
 
-    opensearch.index_ckan(suffix=suffix, row_limit=1)
+    opensearch.index_ckan(index_name=f"{opensearch_datasets_name}-{suffix}", row_limit=1)
 
     indexed_package_1 = opensearch_client.get(
         index=f"{opensearch_datasets_name}-{suffix}",
@@ -159,9 +159,8 @@ def test_index_ckan_with_row_limit_package_indexed_correctly(
 
 def test_index_ckan_nothing_indexed_stops_early(package_factory, opensearch_datasets_name):
     package_factory(state="deleted")
-    suffix = "test"
 
-    success_count = opensearch.index_ckan(suffix=suffix)
+    success_count = opensearch.index_ckan(index_name=f"{opensearch_datasets_name}-test")
 
     assert success_count == 0
 
@@ -176,7 +175,7 @@ def test_clear_opensearch_clears_successfully(
     package_factory()
     opensearch_client = configured_opensearch_client
     suffix = "2026-08-28t00.00.00+00.00"
-    opensearch.index_ckan(suffix=suffix)
+    opensearch.index_ckan(index_name=f"{opensearch_datasets_name}-{suffix}")
 
     expected_index_name = opensearch_datasets_name + f"-{suffix}"
     all_indices = list(opensearch_client.indices.get(index="*").keys())
