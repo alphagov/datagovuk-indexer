@@ -1,8 +1,9 @@
 import argparse
 import logging
 import sys
+from datetime import UTC, datetime
 
-from indexer.opensearch import clear_opensearch, configure_mappings, index_ckan
+from indexer.opensearch import clear_opensearch, configure_mappings, index_ckan_and_collections
 
 logging.basicConfig(
     stream=sys.stdout,
@@ -15,7 +16,7 @@ def main():
     parser = argparse.ArgumentParser(description="Index ckan datasets/datagovuk collections to opensearch.")
     subparsers = parser.add_subparsers(dest="operation", required=True)
 
-    index_parser = subparsers.add_parser("index", help="Index data to opensearch")
+    index_parser = subparsers.add_parser("index", help="Index both ckan and collections to opensearch")
     index_parser.add_argument(
         "--row-limit",
         type=int,
@@ -29,7 +30,8 @@ def main():
 
     if args.operation == "index":
         configure_mappings()
-        index_ckan(row_limit=args.row_limit)
+        suffix = datetime.now(tz=UTC).replace(microsecond=0).isoformat().replace(":", ".").replace("T", "t")
+        index_ckan_and_collections(row_limit=args.row_limit, suffix=suffix)
     elif args.operation == "clear":
         clear_opensearch()
 

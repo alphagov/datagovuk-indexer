@@ -1,6 +1,11 @@
+from pathlib import Path
+from unittest.mock import patch
+
 import pytest
 
-from indexer.utils import strip_markdown_and_html
+from indexer.utils import _markdown_files, get_all_collections, strip_markdown_and_html
+
+TEST_COLLECTION_MARKDOWN_PATH = Path(__file__).parent / "collections" / "test-topic" / "test.md"
 
 
 @pytest.mark.asyncio
@@ -128,3 +133,41 @@ async def test_strip_markdown_and_html_table():
     assert "Cell 2" in result
     assert "|" not in result
     assert "---" not in result
+
+
+def test_markdown_files(tmp_path):
+    test_files = ["test.md", "second_test.md"]
+    for name in test_files:
+        (tmp_path / name).touch()
+    (tmp_path / "third_test.txt").touch()
+    result = list(_markdown_files(tmp_path))
+    assert len(result) == len(test_files)
+    for topic in result:
+        assert topic.suffix == ".md"
+
+
+@patch("indexer.utils._markdown_files")
+def test_get_all_collections_parses_markdown(mock_markdown_files):
+    mock_markdown_files.return_value = [
+        TEST_COLLECTION_MARKDOWN_PATH,
+    ]
+    collections = get_all_collections()
+    assert len(collections) == 1
+    assert collections[0]["uuid"] == "33a4e2ae-6f90-4eda-8c70-1b04a7da43bc"
+    assert collections[0]["title"] == "Test title"
+    assert collections[0]["description"] == "Test content"
+    assert collections[0]["created_at"] == "2026-06-03"
+    assert collections[0]["updated_at"] == "2026-06-03"
+    assert "api" not in collections[0]
+    assert "dataset" not in collections[0]
+    assert "organization" not in collections[0]
+    assert "visualisation-data" not in collections[0]
+    assert "contact" not in collections[0]
+    assert "websites" not in collections[0]
+
+
+@patch("indexer.utils._markdown_files")
+def test_get_all_collections_with_no_markdown_files(mock_markdown_files):
+    mock_markdown_files.return_value = []
+    collections = get_all_collections()
+    assert len(collections) == 0

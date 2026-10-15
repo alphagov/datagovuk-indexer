@@ -1,5 +1,4 @@
 import asyncio
-from datetime import UTC, datetime
 from logging import getLogger
 
 import psycopg
@@ -50,17 +49,17 @@ def configure_mappings():
                             "english": {"type": "text", "analyzer": "english"},
                         },
                     },
-                    "description_raw": {
-                        "type": "text",
-                        "fields": {
-                            "keyword": {"type": "keyword", "ignore_above": 256},
-                        },
-                    },
                     "description": {
                         "type": "text",
                         "fields": {
                             "keyword": {"type": "keyword", "ignore_above": 256},
                             "english": {"type": "text", "analyzer": "english"},
+                        },
+                    },
+                    "description_raw": {
+                        "type": "text",
+                        "fields": {
+                            "keyword": {"type": "keyword", "ignore_above": 256},
                         },
                     },
                     "organisations": {
@@ -173,13 +172,57 @@ async def _index_ckan(index_name, row_limit=None):
         }
 
 
-def index_ckan(row_limit=None):
-    index_suffix = datetime.now(tz=UTC).replace(microsecond=0).isoformat().replace(":", ".").replace("T", "t")
-    index_name = f"{config.DATASETS_INDEX['name']}-{index_suffix}"
-    index_results = asyncio.run(_index_ckan(index_name=index_name, row_limit=row_limit))
-    if index_results["success_count"] == 0:
+def _index_collections(index_name, row_limit=None):
+    collections = utils.get_all_collections()
+    for collection in collections:
+        yield {
+            "_index": index_name,
+            "_id": collection.get("uuid", ""),
+            "_source": collection,
+        }
+
+
+def index_collections(index_name, row_limit=None):
+    logger.info("Indexing collections")
+    opensearch_client = get_client()
+    success_count, errors = helpers.bulk(
+        opensearch_client,
+        _index_collections(index_name=index_name, row_limit=row_limit),
+        raise_on_error=False,
+    )
+    logger.info("Indexed %s collection documents.", success_count)
+    if errors:
+        logger.warning("Failed to index %s collection documents due to errors: %s", len(errors), errors)
+    return success_count
+
+
+def index_ckan(suffix, row_limit=None):
+    index_name = f"{config.DATASETS_INDEX['name']}-{suffix}"
+    logger.info("Indexing ckan datasets")
+    results = asyncio.run(_index_ckan(index_name=index_name, row_limit=row_limit))
+    logger.info("Successfully Indexed %s ckan documents.", results["success_count"])
+    if results["failure_count"]:
+        logger.warning("Failed to index %s ckan documents.", results["failure_count"])
+    if results["success_count"] > 0:
+        update_alias_to_new_index(index_name)
+    return results["success_count"]
+
+
+def index_ckan_and_collections(row_limit=None, suffix=None):
+    index_name = f"{config.DATASETS_INDEX['name']}-{suffix}"
+
+    collections_success_count = index_collections(index_name=index_name, row_limit=row_limit)
+    ckan_success_count = index_ckan(suffix=suffix, row_limit=row_limit)
+
+    if collections_success_count + ckan_success_count == 0:
         logger.error("No documents were indexed! Exiting before pointing alias to new index...")
-        return index_results["success_count"]
+        return False
+
+    update_alias_to_new_index(index_name)
+    return True
+
+
+def update_alias_to_new_index(index_name):
     logger.info("Switching alias to new index...")
     opensearch_client = get_client()
     alias_body = {
@@ -190,7 +233,6 @@ def index_ckan(row_limit=None):
     }
     opensearch_client.indices.update_aliases(body=alias_body)
     logger.info("Alias updated.")
-    return index_results["success_count"]
 
 
 def clear_opensearch():
