@@ -86,7 +86,17 @@ def ckan_connection(postgres_dsn):
 @pytest.fixture
 def package_factory(ckan_connection):
     def _create(**kwargs):
-        package = create_package(ckan_connection, **kwargs)
-        return package
+        return create_package(ckan_connection, **kwargs)
 
     return _create
+
+
+@pytest.fixture
+def collection_factory():
+    return {
+        "uuid": "00000000-0000-0000-0000-000000000001",
+        "title": "Test Collection",
+        "description": "This is fake test content.",
+        "created_at": "2024-01-01T00:00:00",
+        "updated_at": "2024-01-01T00:00:00",
+    }
