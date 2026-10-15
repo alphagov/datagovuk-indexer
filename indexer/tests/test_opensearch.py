@@ -86,8 +86,7 @@ def test_index_ckan_and_collections_indexed_correctly(
     opensearch_datasets_name,
 ):
     active_package = package_factory()
-    active_collection = collection_factory()
-    mock_get_all_collections.return_value = [active_collection]
+    mock_get_all_collections.return_value = [collection_factory]
     opensearch_client = configured_opensearch_client
     suffix = "test"
 
@@ -104,12 +103,12 @@ def test_index_ckan_and_collections_indexed_correctly(
 
     indexed_collection = opensearch_client.get(
         index=f"{opensearch_datasets_name}-{suffix}",
-        id=str(active_collection["uuid"]),
+        id=str(collection_factory["uuid"]),
     )["_source"]
-    assert indexed_collection["title"] == active_collection["title"]
-    assert indexed_collection["description"] == active_collection["description"]
-    assert indexed_collection["created_at"] == active_collection["created_at"]
-    assert indexed_collection["updated_at"] == active_collection["updated_at"]
+    assert indexed_collection["title"] == collection_factory["title"]
+    assert indexed_collection["description"] == collection_factory["description"]
+    assert indexed_collection["created_at"] == collection_factory["created_at"]
+    assert indexed_collection["updated_at"] == collection_factory["updated_at"]
 
 
 @patch("indexer.utils.get_all_collections")
@@ -134,6 +133,23 @@ def test_index_ckan_and_collections_with_no_collections(
     assert indexed_package["created_at"] == active_package["metadata_created"].replace(tzinfo=None).isoformat()
     assert indexed_package["updated_at"] == active_package["metadata_modified"].replace(tzinfo=None).isoformat()
     assert indexed_package["organisations"][0]["uuid"] == active_package["owner_org"]
+
+
+@patch("indexer.utils.get_all_collections")
+def test_index_ckan_and_collections_with_no_indexing(
+    mock_get_all_collections,
+    configured_opensearch_client,
+    opensearch_datasets_name,
+):
+    mock_get_all_collections.return_value = []
+    opensearch_client = configured_opensearch_client
+    suffix = "test"
+
+    result = opensearch.index_ckan_and_collections(suffix=suffix)
+
+    assert result is False
+    with pytest.raises(opensearchpy.exceptions.NotFoundError):
+        opensearch_client.get(index=f"{opensearch_datasets_name}-{suffix}", id="nonexistent")
 
 
 def test_index_ckan_with_row_limit_package_indexed_correctly(

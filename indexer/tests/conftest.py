@@ -94,7 +94,7 @@ def package_factory(ckan_connection):
 
 @pytest.fixture
 def collection_factory():
-    return lambda: {
+    return {
         "uuid": "00000000-0000-0000-0000-000000000001",
         "title": "Test Collection",
         "description": "This is fake test content.",

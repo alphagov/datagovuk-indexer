@@ -1,7 +1,7 @@
 ---
 uuid: 3631d83f-21db-4176-bdac-5abfb811f5b2
-created_at: 2026-10-15
-updated_at: 2026-10-15
+created_at: "2026-10-15"
+updated_at: "2026-10-15"
 title: Long-term development, learning and wellbeing studies
 websites:
   - url: https://children2020s.ipsos.com/

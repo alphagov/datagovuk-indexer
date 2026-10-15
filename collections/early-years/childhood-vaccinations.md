@@ -1,7 +1,7 @@
 ---
 uuid: 18c7aad3-5961-44e1-9f28-8d4bc8262592
-created_at: 2026-10-15
-updated_at: 2026-10-15
+created_at: "2026-10-15"
+updated_at: "2026-10-15"
 title: Childhood vaccinations
 websites:
   - link-text: UKHSA childhood vaccination dashboard

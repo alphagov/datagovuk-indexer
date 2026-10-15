@@ -173,7 +173,7 @@ async def _index_ckan(index_name, row_limit=None):
         }
 
 
-def _index_collections(index_name, row_limit=None):
+def _index_collections(index_name):
     collections = utils.get_all_collections()
     for collection in collections:
         yield {
@@ -183,12 +183,12 @@ def _index_collections(index_name, row_limit=None):
         }
 
 
-def index_collections(index_name, row_limit=None):
+def index_collections(index_name):
     logger.info("Indexing collections")
     opensearch_client = get_client()
     success_count, errors = helpers.bulk(
         opensearch_client,
-        _index_collections(index_name=index_name, row_limit=row_limit),
+        _index_collections(index_name=index_name),
         raise_on_error=False,
     )
     logger.info("Indexed %s collection documents.", success_count)
@@ -203,8 +203,6 @@ def index_ckan(index_name, row_limit=None):
     logger.info("Successfully Indexed %s ckan documents.", results["success_count"])
     if results["failure_count"]:
         logger.warning("Failed to index %s ckan documents.", results["failure_count"])
-    if results["success_count"] > 0:
-        update_alias_to_new_index(index_name)
     return results["success_count"]
 
 
@@ -213,7 +211,7 @@ def index_ckan_and_collections(row_limit=None, suffix=None):
         suffix = datetime.now(tz=UTC).replace(microsecond=0).isoformat().replace(":", ".").replace("T", "t")
     index_name = f"{config.DATASETS_INDEX['name']}-{suffix}"
 
-    collections_success_count = index_collections(index_name=index_name, row_limit=row_limit)
+    collections_success_count = index_collections(index_name=index_name)
     ckan_success_count = index_ckan(index_name=index_name, row_limit=row_limit)
 
     if collections_success_count + ckan_success_count == 0:

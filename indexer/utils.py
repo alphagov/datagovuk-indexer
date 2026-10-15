@@ -6,10 +6,6 @@ import mistune
 from selectolax.lexbor import LexborHTMLParser as HTMLParser
 
 
-def render_markdown(content: str) -> str:
-    return mistune.html(content)
-
-
 def _strip_markdown_html(text: str) -> str:
     # Convert Markdown to HTML using mistune
     html = mistune.html(text)
@@ -28,7 +24,8 @@ def _markdown_files(directory: Path) -> list[Path]:
 
 def get_all_collections():
     results = []
-    for collection_markdown in _markdown_files(Path("collections")):
+    collections_path = Path(__file__).parent.parent / "collections"
+    for collection_markdown in _markdown_files(collections_path):
         with collection_markdown.open() as f:
             parsed_frontmatter = frontmatter.load(f)
         context = {}

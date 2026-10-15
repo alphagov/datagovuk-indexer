@@ -1,7 +1,7 @@
 ---
 uuid: a6a97d4e-2b16-4217-8b59-c1aa441b9c60
-created_at: 2026-10-15
-updated_at: 2026-10-15
+created_at: "2026-10-15"
+updated_at: "2026-10-15"
 title: Childcare providers
 websites:
   - url: https://reports.ofsted.gov.uk

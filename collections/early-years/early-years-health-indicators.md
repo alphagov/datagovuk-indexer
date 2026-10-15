@@ -1,7 +1,7 @@
 ---
 uuid: 36950112-786a-4991-929c-96d258e31110
-created_at: 2026-10-15
-updated_at: 2026-10-15
+created_at: "2026-10-15"
+updated_at: "2026-10-15"
 title: Early years health indicators
 websites:
   - link-text: Fingertips health trends - England

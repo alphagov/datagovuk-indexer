@@ -1,7 +1,7 @@
 ---
 uuid: 8b841903-b829-4b7d-be25-aefaea8e4dc2
-created_at: 2026-10-15
-updated_at: 2026-10-15
+created_at: "2026-10-15"
+updated_at: "2026-10-15"
 title: Early years development review
 websites:
   - link-text: Early years development - England
