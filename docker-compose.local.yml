@@ -19,6 +19,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_started
+    networks:
+      - datagovuk
 
   postgres:
     image: postgis/postgis:14-3.5-alpine
@@ -35,6 +37,8 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/postgres/init.sh:/docker-entrypoint-initdb.d/01-init.sh:ro
       - ./docker/postgres/ckan-schema.sql:/schema/ckan-schema.sql:ro
+    networks:
+      - datagovuk
 
   opensearch:
     image: opensearchproject/opensearch:3.7.0
@@ -61,6 +65,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    networks:
+      - datagovuk
 
   opensearch-dashboards:
     image: opensearchproject/opensearch-dashboards:3.7.0
@@ -73,6 +79,12 @@ services:
       DISABLE_SECURITY_DASHBOARDS_PLUGIN: "true" # Must match OpenSearch's security setting
     depends_on:
       - opensearch
+    networks:
+      - datagovuk
 
 volumes:
   postgres_data:
+
+networks:
+  datagovuk:
+    external: true
