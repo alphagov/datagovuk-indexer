@@ -59,6 +59,7 @@ def test_index_opensearch_correctly(
         id=str(package_1["id"]),
     )["_source"]
     assert indexed_package_1["title"] == package_1["title"]
+    assert indexed_package_1["slug"] == package_1["name"]
     assert indexed_package_1["source"] == "ckan"
     assert indexed_package_1["description_raw"] == package_1["notes"]
     assert indexed_package_1["created_at"] == _get_utc(package_1["metadata_created"]).isoformat()
@@ -72,6 +73,7 @@ def test_index_opensearch_correctly(
         id=str(package_2["id"]),
     )["_source"]
     assert indexed_package_2["title"] == package_2["title"]
+    assert indexed_package_2["slug"] == package_2["name"]
     assert indexed_package_2["source"] == "ckan"
     assert indexed_package_2["description_raw"] == package_2["notes"]
     assert indexed_package_2["created_at"] == _get_utc(package_2["metadata_created"]).isoformat()
@@ -109,6 +111,7 @@ def test_index_opensearch_with_deleted_package_not_indexed(
         id=str(active_package["id"]),
     )["_source"]
     assert indexed_active_package["title"] == active_package["title"]
+    assert indexed_active_package["slug"] == active_package["name"]
     assert indexed_active_package["description_raw"] == active_package["notes"]
     assert indexed_active_package["created_at"] == _get_utc(active_package["metadata_created"]).isoformat()
     assert indexed_active_package["updated_at"] == _get_utc(active_package["metadata_modified"]).isoformat()

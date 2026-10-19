@@ -45,6 +45,7 @@ def setup_index():
             "mappings": {
                 "properties": {
                     "uuid": {"type": "keyword"},
+                    "slug": {"type": "keyword"},
                     "source": {"type": "keyword"},
                     "title": {
                         "type": "text",
@@ -114,6 +115,7 @@ async def fetch_ckan_documents(conn: psycopg.AsyncConnection, index_name, row_li
         SELECT
             p.id,
             p.title,
+            p.name,
             p.notes,
             p.metadata_created,
             p.metadata_modified,
@@ -140,6 +142,7 @@ async def fetch_ckan_documents(conn: psycopg.AsyncConnection, index_name, row_li
                 "_source": {
                     "uuid": row["id"],
                     "title": row["title"],
+                    "slug": row["name"],
                     "source": "ckan",
                     "description_raw": row["notes"],
                     "description": stripped_description,
