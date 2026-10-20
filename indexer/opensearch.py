@@ -44,6 +44,7 @@ def setup_index():
                 "properties": {
                     "uuid": {"type": "keyword"},
                     "slug": {"type": "keyword"},
+                    "collection": {"type": "keyword"},
                     "source": {"type": "keyword"},
                     "title": {
                         "type": "text",
@@ -203,6 +204,8 @@ def _collections(index_name):
                     "title": collection["title"],
                     "source": "collection",
                     "uuid": collection["uuid"],
+                    "slug": collection["slug"],
+                    "collection": collection["collection"],
                     "description": utils.strip_markdown_html(collection.content),
                     "description_raw": collection.content,
                     "organisations": collection["organisations"],

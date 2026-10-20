@@ -23,5 +23,8 @@ def get_all_collections():
     results = []
     for collection_markdown_file in config.COLLECTIONS_PATH.rglob("*.md"):
         with collection_markdown_file.open() as f:
-            results.append(frontmatter.load(f))
+            collection = frontmatter.load(f)
+            collection["slug"] = str(collection_markdown_file.name).replace(".md", "")
+            collection["collection"] = str(collection_markdown_file.parent.name)
+            results.append(collection)
     return results

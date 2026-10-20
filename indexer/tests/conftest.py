@@ -104,7 +104,9 @@ def package_factory(ckan_connection):
 
 @pytest.fixture
 def collection_factory(override_collections_path):
-    test_collection_markdown = override_collections_path / "test-collection.md"
+    collection_location = override_collections_path / "test-collection"
+    collection_location.mkdir()
+    test_collection_markdown = collection_location / "test-collection-page.md"
     test_collection_markdown.write_text(
         "---\n"
         "uuid: 00000000-0000-0000-0000-000000000001\n"
