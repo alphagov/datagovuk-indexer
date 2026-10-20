@@ -1,3 +1,5 @@
+from unittest.mock import MagicMock
+
 import frontmatter
 import psycopg
 import pytest
@@ -114,3 +116,18 @@ def collection_factory(override_collections_path):
         "This is **test** content.\n",
     )
     return frontmatter.load(test_collection_markdown)
+
+
+@pytest.fixture
+def failing_bulk_index(monkeypatch):
+    async def _failing_bulk_index(*args, **kwargs):
+        yield False, {"error": "something went wrong"}
+
+    monkeypatch.setattr(opensearch.helpers, "async_streaming_bulk", _failing_bulk_index)
+
+
+@pytest.fixture
+def mock_bulk_with_error(monkeypatch):
+    mock = MagicMock(return_value=(0, ["some error"]))
+    monkeypatch.setattr(opensearch.helpers, "bulk", mock)
+    return mock

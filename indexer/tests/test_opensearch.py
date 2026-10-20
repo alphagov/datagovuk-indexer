@@ -210,3 +210,20 @@ def test_clear_opensearch_clears_successfully(
     assert expected_index_name not in all_indices
     all_templates = [template["name"] for template in opensearch_client.indices.get_index_template()["index_templates"]]
     assert opensearch_datasets_template_name not in all_templates
+
+
+def test_transform_context_transforms_nested_list():
+    result = opensearch.transform_context({"test-key": ["test1", "test2"]})
+    assert result == {"test_key": ["test1", "test2"]}
+
+
+def test_index_collections_logs_warning_on_errors(mock_bulk_with_error, caplog, collection_factory):
+    opensearch.index_collections(index_name="datasets-test-2026-01-01t00.00.00+00.00")
+    assert "Failed to index 1 collection documents due to errors" in caplog.text
+
+
+def test_index_ckan_logs_warning_on_failure(failing_bulk_index, caplog, package_factory):
+    package_factory()
+    result = opensearch.index_ckan(index_name="datasets-test-2026-01-01t00.00.00+00.00")
+    assert result == 0
+    assert "Failed to index document" in caplog.text

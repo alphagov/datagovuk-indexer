@@ -95,15 +95,15 @@ def setup_index():
     logger.info("Index template '%s' configured.", template_name)
 
 
-def _transform_context(context):
+def transform_context(context):
     """
     Recursively transform keys frontmatter kebab-case to pythonic underscores, e.g.
     my-key becomes my_key
     """
     if isinstance(context, dict):
-        return {key.lower().replace("-", "_"): _transform_context(value) for key, value in context.items()}
+        return {key.lower().replace("-", "_"): transform_context(value) for key, value in context.items()}
     if isinstance(context, list):
-        return [_transform_context(item) for item in context]
+        return [transform_context(item) for item in context]
     return context
 
 
@@ -195,7 +195,7 @@ def _collections(index_name):
         yield {
             "_index": index_name,
             "_id": str(collection["uuid"]),
-            "_source": _transform_context(
+            "_source": transform_context(
                 {
                     "title": collection["title"],
                     "source": "collection",
@@ -210,7 +210,7 @@ def _collections(index_name):
         }
 
 
-def _index_collections(index_name):
+def index_collections(index_name):
     logger.info("Indexing collections")
     opensearch_client = get_client()
     success_count, errors = helpers.bulk(
@@ -224,7 +224,7 @@ def _index_collections(index_name):
     return success_count
 
 
-def _index_ckan(index_name, row_limit=None):
+def index_ckan(index_name, row_limit=None):
     logger.info("Indexing ckan datasets")
     results = asyncio.run(_opensearch_index_ckan(index_name=index_name, row_limit=row_limit))
     logger.info("Successfully Indexed %s ckan documents.", results["success_count"])
@@ -242,8 +242,8 @@ def index_opensearch(ckan_row_limit=None):
     index_name = f"{config.DATASETS_INDEX['name']}-{index_suffix}"
 
     setup_index()
-    collections_success_count = _index_collections(index_name=index_name)
-    ckan_success_count = _index_ckan(index_name=index_name, row_limit=ckan_row_limit)
+    collections_success_count = index_collections(index_name=index_name)
+    ckan_success_count = index_ckan(index_name=index_name, row_limit=ckan_row_limit)
 
     if (collections_success_count == 0) or (ckan_success_count == 0):
         logger.error("No collections or ckan packages were indexed! Exiting before pointing alias to new index...")
