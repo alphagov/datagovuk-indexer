@@ -1,6 +1,6 @@
 import pytest
 
-from indexer.utils import strip_markdown_and_html
+from indexer.utils import get_all_collections, strip_markdown_and_html
 
 
 @pytest.mark.asyncio
@@ -128,3 +128,18 @@ async def test_strip_markdown_and_html_table():
     assert "Cell 2" in result
     assert "|" not in result
     assert "---" not in result
+
+
+def test_get_all_collections_parses_markdown(collection_factory):
+    collections = get_all_collections()
+    assert len(collections) == 1
+    assert collections[0]["uuid"] == collection_factory["uuid"]
+    assert collections[0]["title"] == collection_factory["title"]
+    assert collections[0].content == collection_factory.content
+    assert collections[0]["created_at"] == collection_factory["created_at"]
+    assert collections[0]["updated_at"] == collection_factory["updated_at"]
+
+
+def test_get_all_collections_with_no_markdown_files():
+    collections = get_all_collections()
+    assert len(collections) == 0
