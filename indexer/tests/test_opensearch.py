@@ -88,6 +88,8 @@ def test_index_opensearch_correctly(
     )["_source"]
     assert indexed_collection["title"] == topic["title"]
     assert indexed_collection["source"] == "collections"
+    assert indexed_collection["slug"] == "test-topic"
+    assert indexed_collection["collection"] == "collection-name"
     assert indexed_collection["description"] == "Test description"
     assert indexed_collection["description_raw"] == topic["description"]
     assert indexed_collection["organisations"] == []
