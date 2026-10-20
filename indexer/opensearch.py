@@ -23,7 +23,7 @@ def get_client():
     return OpenSearch(hosts=[config.OPENSEARCH_URL])
 
 
-def configure_mappings():
+def setup_index():
     datasets_prefix = f"{config.DATASETS_INDEX['name']}-"
     datasets_template = {
         "index_patterns": [f"{datasets_prefix}*"],
@@ -43,7 +43,15 @@ def configure_mappings():
             "mappings": {
                 "properties": {
                     "uuid": {"type": "keyword"},
+                    "source": {"type": "keyword"},
                     "title": {
+                        "type": "text",
+                        "fields": {
+                            "keyword": {"type": "keyword", "ignore_above": 256},
+                            "english": {"type": "text", "analyzer": "english"},
+                        },
+                    },
+                    "description": {
                         "type": "text",
                         "fields": {
                             "keyword": {"type": "keyword", "ignore_above": 256},
@@ -54,13 +62,6 @@ def configure_mappings():
                         "type": "text",
                         "fields": {
                             "keyword": {"type": "keyword", "ignore_above": 256},
-                        },
-                    },
-                    "description": {
-                        "type": "text",
-                        "fields": {
-                            "keyword": {"type": "keyword", "ignore_above": 256},
-                            "english": {"type": "text", "analyzer": "english"},
                         },
                     },
                     "organisations": {
@@ -94,6 +95,18 @@ def configure_mappings():
     logger.info("Index template '%s' configured.", template_name)
 
 
+def transform_context(context):
+    """
+    Recursively transform keys frontmatter kebab-case to pythonic underscores, e.g.
+    my-key becomes my_key
+    """
+    if isinstance(context, dict):
+        return {key.lower().replace("-", "_"): transform_context(value) for key, value in context.items()}
+    if isinstance(context, list):
+        return [transform_context(item) for item in context]
+    return context
+
+
 async def fetch_ckan_documents(conn: psycopg.AsyncConnection, index_name, row_limit=None):
     query = """
         SELECT
@@ -125,6 +138,7 @@ async def fetch_ckan_documents(conn: psycopg.AsyncConnection, index_name, row_li
                 "_source": {
                     "uuid": row["id"],
                     "title": row["title"],
+                    "source": "ckan",
                     "description_raw": row["notes"],
                     "description": stripped_description,
                     "created_at": row["metadata_created"],
@@ -140,7 +154,7 @@ async def fetch_ckan_documents(conn: psycopg.AsyncConnection, index_name, row_li
             }
 
 
-async def _index_ckan(index_name, row_limit=None):
+async def _opensearch_index_ckan(index_name, row_limit=None):
     # Connect using psycopg3's AsyncConnection with dictionary row mapping
     async with await psycopg.AsyncConnection.connect(config.POSTGRES_DSN, row_factory=dict_row) as pg_conn:
         opensearch_client = AsyncOpenSearch(hosts=[config.OPENSEARCH_URL])
@@ -149,6 +163,7 @@ async def _index_ckan(index_name, row_limit=None):
 
         success_count = 0
         failure_count = 0
+        errors = []
         async for success, info in helpers.async_streaming_bulk(
             client=opensearch_client,
             actions=fetch_ckan_documents(pg_conn, index_name, row_limit=row_limit),
@@ -162,6 +177,7 @@ async def _index_ckan(index_name, row_limit=None):
                 # TODO: Remove pragma:no cover above when the mapping gets more complex;
                 #   it's currently too tricky to trigger this without lots of mocking
                 failure_count += 1
+                errors.append(info)
                 logger.warning("Failed to index document: %s", info)
 
         logger.info("Indexing complete! Successfully indexed %s documents.", success_count)
@@ -170,16 +186,74 @@ async def _index_ckan(index_name, row_limit=None):
         return {
             "success_count": success_count,
             "failure_count": failure_count,
+            "errors": errors,
         }
 
 
-def index_ckan(row_limit=None):
+def _collections(index_name):
+    for collection in utils.get_all_collections():
+        yield {
+            "_index": index_name,
+            "_id": str(collection["uuid"]),
+            "_source": transform_context(
+                {
+                    "title": collection["title"],
+                    "source": "collection",
+                    "uuid": collection["uuid"],
+                    "description": utils.strip_markdown_html(collection.content),
+                    "description_raw": collection.content,
+                    "organisations": collection["organisations"],
+                    "created_at": collection["created_at"],
+                    "updated_at": collection["updated_at"],
+                },
+            ),
+        }
+
+
+def index_collections(index_name):
+    logger.info("Indexing collections")
+    opensearch_client = get_client()
+    success_count, errors = helpers.bulk(
+        opensearch_client,
+        _collections(index_name=index_name),
+        raise_on_error=False,
+    )
+    logger.info("Indexed %s collection documents.", success_count)
+    if errors:
+        logger.warning("Failed to index %s collection documents due to errors: %s", len(errors), errors)
+    return success_count
+
+
+def index_ckan(index_name, row_limit=None):
+    logger.info("Indexing ckan datasets")
+    results = asyncio.run(_opensearch_index_ckan(index_name=index_name, row_limit=row_limit))
+    logger.info("Successfully Indexed %s ckan documents.", results["success_count"])
+    if results["failure_count"]:
+        logger.warning(
+            "Failed to index %s ckan documents due to errors: %s",
+            results["failure_count"],
+            results["errors"],
+        )
+    return results["success_count"]
+
+
+def index_opensearch(ckan_row_limit=None):
     index_suffix = datetime.now(tz=UTC).replace(microsecond=0).isoformat().replace(":", ".").replace("T", "t")
     index_name = f"{config.DATASETS_INDEX['name']}-{index_suffix}"
-    index_results = asyncio.run(_index_ckan(index_name=index_name, row_limit=row_limit))
-    if index_results["success_count"] == 0:
-        logger.error("No documents were indexed! Exiting before pointing alias to new index...")
-        return index_results["success_count"]
+
+    setup_index()
+    collections_success_count = index_collections(index_name=index_name)
+    ckan_success_count = index_ckan(index_name=index_name, row_limit=ckan_row_limit)
+
+    if (collections_success_count == 0) or (ckan_success_count == 0):
+        logger.error("No collections or ckan packages were indexed! Exiting before pointing alias to new index...")
+        return False
+
+    publish_index(index_name)
+    return True
+
+
+def publish_index(index_name):
     logger.info("Switching alias to new index...")
     opensearch_client = get_client()
     alias_body = {
@@ -190,7 +264,6 @@ def index_ckan(row_limit=None):
     }
     opensearch_client.indices.update_aliases(body=alias_body)
     logger.info("Alias updated.")
-    return index_results["success_count"]
 
 
 def clear_opensearch():

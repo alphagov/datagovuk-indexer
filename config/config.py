@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import environ
 
 env = environ.Env()
@@ -14,3 +16,5 @@ DATASETS_INDEX = {
 
 POSTGRES_DSN = env("POSTGRES_DSN", default=None)
 POSTGRES_BATCH_SIZE = 2000
+
+COLLECTIONS_PATH = Path(__file__).parent.parent / "collections"
