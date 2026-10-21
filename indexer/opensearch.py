@@ -208,7 +208,7 @@ def _collections(index_name):
                     "collection": collection["collection"],
                     "description": utils.strip_markdown_html(collection.content),
                     "description_raw": collection.content,
-                    "organisations": collection["organisations"],
+                    "organisations": collection["organisations"] or [],
                     "created_at": collection["created_at"],
                     "updated_at": collection["updated_at"],
                 },
