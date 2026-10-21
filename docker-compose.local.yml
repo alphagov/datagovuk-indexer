@@ -15,7 +15,7 @@ services:
         required: false
     command: tail -f /dev/null
     depends_on:
-      opensearch:
+      opensearch-indexer:
         condition: service_healthy
       postgres:
         condition: service_started
@@ -40,7 +40,7 @@ services:
     networks:
       - datagovuk
 
-  opensearch:
+  opensearch-indexer:
     image: opensearchproject/opensearch:3.7.0
     container_name: opensearch_node
     restart: always
@@ -75,10 +75,10 @@ services:
     ports:
       - "5601:5601"
     environment:
-      OPENSEARCH_HOSTS: '["http://opensearch:9200"]'
+      OPENSEARCH_HOSTS: '["http://opensearch-indexer:9200"]'
       DISABLE_SECURITY_DASHBOARDS_PLUGIN: "true" # Must match OpenSearch's security setting
     depends_on:
-      - opensearch
+      - opensearch-indexer
     networks:
       - datagovuk
 
