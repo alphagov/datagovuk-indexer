@@ -1,3 +1,6 @@
+from unittest.mock import patch
+from uuid import uuid5
+
 import opensearchpy
 import pytest
 from freezegun import freeze_time
@@ -35,12 +38,16 @@ def _get_utc(dt):
 
 def test_index_opensearch_correctly(
     collection_factory,
+    collections_with_topics,
     package_factory,
     configured_opensearch_client,
     opensearch_datasets_name,
 ):
-    package_1, org_1 = package_factory()
+    collection = collections_with_topics[0]
+    topic = collection["topics"][0]
+    topic_uuid = uuid5(config.NAMESPACE_UUID, collection["name"] + topic["slug"])
 
+    package_1, org_1 = package_factory()
     package_2, org_2 = package_factory()
 
     opensearch_client = configured_opensearch_client
@@ -75,15 +82,14 @@ def test_index_opensearch_correctly(
 
     indexed_collection = opensearch_client.get(
         index=f"{opensearch_datasets_name}",
-        id=str(collection_factory["uuid"]),
+        id=str(topic_uuid),
     )["_source"]
-    assert indexed_collection["title"] == collection_factory["title"]
-    assert indexed_collection["source"] == "collection"
-    assert indexed_collection["description"] == "This is test content."
-    assert indexed_collection["description_raw"] == collection_factory.content
-    assert indexed_collection["organisations"] == collection_factory["organisations"]
-    assert indexed_collection["created_at"] == collection_factory["created_at"]
-    assert indexed_collection["updated_at"] == collection_factory["updated_at"]
+    assert indexed_collection["title"] == topic["title"]
+    assert indexed_collection["source"] == "collections"
+    assert indexed_collection["description"] == "Test description"
+    assert indexed_collection["description_raw"] == topic["description"]
+    assert indexed_collection["organisations"] == []
+    assert indexed_collection["updated_at"] == topic["page-last-updated"]
 
 
 def test_index_opensearch_with_deleted_package_not_indexed(
@@ -129,18 +135,22 @@ def test_index_opensearch_with_no_indexing(
 def test_index_opensearch_fails_if_no_collections(
     package_factory,
     configured_opensearch_client,
+    opensearch_datasets_prefix,
 ):
     package_factory()
     result = opensearch.index_opensearch()
     assert result is False
+    assert not configured_opensearch_client.indices.get(index=f"{opensearch_datasets_prefix}*", ignore=[404])
 
 
 def test_index_opensearch_fails_if_no_ckan(
     collection_factory,
     configured_opensearch_client,
+    opensearch_datasets_prefix,
 ):
     result = opensearch.index_opensearch()
     assert result is False
+    assert not configured_opensearch_client.indices.get(index=f"{opensearch_datasets_prefix}*", ignore=[404])
 
 
 def test_index_opensearch_alias_moves_on_reindex(
@@ -227,3 +237,15 @@ def test_index_ckan_logs_warning_on_failure(failing_bulk_index, caplog, package_
     result = opensearch.index_ckan(index_name="datasets-test-2026-01-01t00.00.00+00.00")
     assert result == 0
     assert "Failed to index document" in caplog.text
+
+
+@patch("indexer.opensearch.get_datagovuk_collections", return_value=[])
+def test_mapping_collections_from_json(mock_get_collections, collections_with_topics):
+    mock_get_collections.return_value = collections_with_topics
+    result = list(opensearch.get_collections(index_name="datasets-test-2026-01-01t00.00.00+00.00"))
+    assert result[0]["_source"]["title"] == "test topic"
+    assert result[0]["_source"]["description"] == "Test description"
+    assert result[0]["_source"]["description_raw"] == "Test <p>description</p>"
+    assert result[0]["_source"]["created_at"] == "2024-06-06T00:00:00Z"
+    assert result[0]["_source"]["updated_at"] == "2026-08-28T00:00:00Z"
+    assert result[0]["_source"]["collection"] == "collection-name"
