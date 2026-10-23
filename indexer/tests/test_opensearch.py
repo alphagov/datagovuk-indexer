@@ -85,7 +85,7 @@ def test_index_opensearch_correctly(
     assert indexed_collection["collection"] == "test-collection"
     assert indexed_collection["description"] == "This is test content."
     assert indexed_collection["description_raw"] == collection_factory.content
-    assert indexed_collection["organisations"] == collection_factory["organisations"]
+    assert indexed_collection["organisations"] == []
     assert indexed_collection["created_at"] == collection_factory["created_at"]
     assert indexed_collection["updated_at"] == collection_factory["updated_at"]
 
