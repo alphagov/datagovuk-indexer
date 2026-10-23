@@ -194,7 +194,7 @@ async def _opensearch_index_ckan(index_name, row_limit=None):
 
 def get_collections(index_name):
     collections = get_datagovuk_collections()
-
+    # TODO: created_at requires a date and for now we are using a fixed date as a placeholder
     for collection in collections:
         collection_name = collection["name"]
         for topic in collection.get("topics", []):

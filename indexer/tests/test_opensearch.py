@@ -5,7 +5,7 @@ import opensearchpy
 import pytest
 from freezegun import freeze_time
 
-from config import config, config as conf
+from config import config
 from indexer import opensearch
 
 
@@ -45,7 +45,7 @@ def test_index_opensearch_correctly(
 ):
     collection = collections_with_topics[0]
     topic = collection["topics"][0]
-    topic_uuid = uuid5(conf.NAMESPACE_UUID, collection["name"] + topic["slug"])
+    topic_uuid = uuid5(config.NAMESPACE_UUID, collection["name"] + topic["slug"])
 
     package_1, org_1 = package_factory()
     package_2, org_2 = package_factory()
