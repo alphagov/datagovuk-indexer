@@ -252,10 +252,16 @@ def index_opensearch(ckan_row_limit=None):
 
     setup_index()
     collections_success_count = index_collections(index_name=index_name)
+
+    if collections_success_count == 0:
+        logger.error("Failed to index collections.")
+        delete_index(index_name)
+        return False
+
     ckan_success_count = index_ckan(index_name=index_name, row_limit=ckan_row_limit)
 
-    if (collections_success_count == 0) or (ckan_success_count == 0):
-        logger.error("collections or ckan failed to be indexed! Exiting before pointing alias to new index...")
+    if ckan_success_count == 0:
+        logger.error("Failed to index CKAN datasets/packages.")
         delete_index(index_name)
         return False
 
