@@ -210,7 +210,7 @@ def get_collections(index_name):
                         "collection": collection_name,
                         "uuid": topic_uuid,
                         "description": stripped_description,
-                        "description_raw": topic.get("description", ""),
+                        "description_raw": topic["description"],
                         "organisations": [],
                         "created_at": "2024-06-06T00:00:00Z",
                         "updated_at": topic["page-last-updated"],
@@ -265,7 +265,7 @@ def index_opensearch(ckan_row_limit=None):
 
 def delete_index(index_name):
     logger.info("Deleting index %s...", index_name)
-    get_client().indices.delete(index=index_name)
+    get_client().indices.delete(index=index_name, ignore=[404])
     logger.info("Index %s deleted.", index_name)
 
 

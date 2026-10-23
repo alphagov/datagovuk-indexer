@@ -1,6 +1,5 @@
 from unittest.mock import MagicMock
 
-import frontmatter
 import psycopg
 import pytest
 from opensearchpy import OpenSearch
@@ -9,14 +8,6 @@ from config import config
 from indexer import opensearch
 
 from .factories import create_package
-
-
-@pytest.fixture(autouse=True)
-def override_collections_path(tmp_path):
-    old_path = config.COLLECTIONS_PATH
-    config.COLLECTIONS_PATH = tmp_path
-    yield tmp_path
-    config.COLLECTIONS_PATH = old_path
 
 
 @pytest.fixture
@@ -103,22 +94,6 @@ def package_factory(ckan_connection):
 
 
 @pytest.fixture
-def collection_factory(override_collections_path):
-    test_collection_markdown = override_collections_path / "test-collection.md"
-    test_collection_markdown.write_text(
-        "---\n"
-        "uuid: 00000000-0000-0000-0000-000000000001\n"
-        "title: Test Collection\n"
-        "created_at: '2026-01-01T00:00:00'\n"
-        "updated_at: '2026-01-01T00:00:00'\n"
-        "organisations:\n"
-        "---\n"
-        "This is **test** content.\n",
-    )
-    return frontmatter.load(test_collection_markdown)
-
-
-@pytest.fixture
 def collections_with_topics():
     return [
         {
@@ -127,13 +102,17 @@ def collections_with_topics():
                 {
                     "slug": "test-topic",
                     "title": "test topic",
-                    "description": "Test description",
-                    "description_raw": "test \ndescription\n",
+                    "description": "Test <p>description</p>",
                     "page-last-updated": "2026-08-28T00:00:00Z",
                 },
             ],
         },
     ]
+
+
+@pytest.fixture
+def collection_factory(collections_with_topics, monkeypatch):
+    monkeypatch.setattr("indexer.opensearch.get_datagovuk_collections", lambda: collections_with_topics)
 
 
 @pytest.fixture
