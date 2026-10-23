@@ -199,7 +199,7 @@ def get_collections(index_name):
         collection_name = collection["name"]
         for topic in collection.get("topics", []):
             topic_uuid = uuid5(config.NAMESPACE_UUID, collection_name + topic["slug"])
-            stripped_description = utils.strip_markdown_and_html(topic["description"])
+            stripped_description = utils.strip_markdown_html(topic["description"])
             yield {
                 "_index": index_name,
                 "_id": str(topic_uuid),
