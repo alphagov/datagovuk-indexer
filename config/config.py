@@ -1,4 +1,5 @@
 from pathlib import Path
+from uuid import UUID
 
 import environ
 
@@ -18,3 +19,5 @@ POSTGRES_DSN = env("POSTGRES_DSN", default=None)
 POSTGRES_BATCH_SIZE = 2000
 
 COLLECTIONS_PATH = Path(__file__).parent.parent / "collections"
+NAMESPACE_UUID = UUID("4f8407d1-1c14-46ee-a858-36b40467aa7f")
+DATAGOVUK_URL = env("DATAGOVUK_URL", default="https://data.gov.uk")

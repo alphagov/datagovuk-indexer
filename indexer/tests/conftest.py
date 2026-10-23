@@ -119,6 +119,24 @@ def collection_factory(override_collections_path):
 
 
 @pytest.fixture
+def collections_with_topics():
+    return [
+        {
+            "name": "collection-name",
+            "topics": [
+                {
+                    "slug": "test-topic",
+                    "title": "test topic",
+                    "description": "Test description",
+                    "description_raw": "test \ndescription\n",
+                    "page-last-updated": "2026-08-28T00:00:00Z",
+                },
+            ],
+        },
+    ]
+
+
+@pytest.fixture
 def failing_bulk_index(monkeypatch):
     async def _failing_bulk_index(*args, **kwargs):
         yield False, {"error": "something went wrong"}

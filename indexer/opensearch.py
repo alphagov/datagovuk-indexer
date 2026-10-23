@@ -1,12 +1,14 @@
 import asyncio
 from datetime import UTC, datetime
 from logging import getLogger
+from uuid import uuid5
 
 import psycopg
 from opensearchpy import AsyncOpenSearch, OpenSearch, helpers
 from psycopg.rows import dict_row
 
 from config import config
+from datagovuk import get_datagovuk_collections
 from indexer import utils
 
 logger = getLogger(__file__)
@@ -190,24 +192,31 @@ async def _opensearch_index_ckan(index_name, row_limit=None):
         }
 
 
-def _collections(index_name):
-    for collection in utils.get_all_collections():
-        yield {
-            "_index": index_name,
-            "_id": str(collection["uuid"]),
-            "_source": transform_context(
-                {
-                    "title": collection["title"],
-                    "source": "collection",
-                    "uuid": collection["uuid"],
-                    "description": utils.strip_markdown_html(collection.content),
-                    "description_raw": collection.content,
-                    "organisations": collection["organisations"],
-                    "created_at": collection["created_at"],
-                    "updated_at": collection["updated_at"],
-                },
-            ),
-        }
+def get_collections(index_name):
+    collections = get_datagovuk_collections()
+
+    for collection in collections:
+        collection_name = collection["name"]
+        for topic in collection.get("topics", []):
+            topic_uuid = uuid5(config.NAMESPACE_UUID, collection_name + topic["slug"])
+            stripped_description = utils.strip_markdown_and_html(topic["description"])
+            yield {
+                "_index": index_name,
+                "_id": str(topic_uuid),
+                "_source": transform_context(
+                    {
+                        "title": topic["title"],
+                        "source": "collections",
+                        "collection": collection_name,
+                        "uuid": topic_uuid,
+                        "description": stripped_description,
+                        "description_raw": topic.get("description", ""),
+                        "organisations": [],
+                        "created_at": "2024-06-06T00:00:00Z",
+                        "updated_at": topic["page-last-updated"],
+                    },
+                ),
+            }
 
 
 def index_collections(index_name):
@@ -215,7 +224,7 @@ def index_collections(index_name):
     opensearch_client = get_client()
     success_count, errors = helpers.bulk(
         opensearch_client,
-        _collections(index_name=index_name),
+        get_collections(index_name=index_name),
         raise_on_error=False,
     )
     logger.info("Indexed %s collection documents.", success_count)
@@ -246,11 +255,18 @@ def index_opensearch(ckan_row_limit=None):
     ckan_success_count = index_ckan(index_name=index_name, row_limit=ckan_row_limit)
 
     if (collections_success_count == 0) or (ckan_success_count == 0):
-        logger.error("No collections or ckan packages were indexed! Exiting before pointing alias to new index...")
+        logger.error("collections or ckan failed to be indexed! Exiting before pointing alias to new index...")
+        delete_index(index_name)
         return False
 
     publish_index(index_name)
     return True
+
+
+def delete_index(index_name):
+    logger.info("Deleting index %s...", index_name)
+    get_client().indices.delete(index=index_name)
+    logger.info("Index %s deleted.", index_name)
 
 
 def publish_index(index_name):

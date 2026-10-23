@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import opensearchpy
 import pytest
 from freezegun import freeze_time
@@ -129,18 +131,22 @@ def test_index_opensearch_with_no_indexing(
 def test_index_opensearch_fails_if_no_collections(
     package_factory,
     configured_opensearch_client,
+    opensearch_datasets_prefix,
 ):
     package_factory()
     result = opensearch.index_opensearch()
     assert result is False
+    assert not configured_opensearch_client.indices.exists(index=f"{opensearch_datasets_prefix}*")
 
 
 def test_index_opensearch_fails_if_no_ckan(
     collection_factory,
     configured_opensearch_client,
+    opensearch_datasets_prefix,
 ):
     result = opensearch.index_opensearch()
     assert result is False
+    assert not configured_opensearch_client.indices.exists(index=f"{opensearch_datasets_prefix}*")
 
 
 def test_index_opensearch_alias_moves_on_reindex(
@@ -227,3 +233,15 @@ def test_index_ckan_logs_warning_on_failure(failing_bulk_index, caplog, package_
     result = opensearch.index_ckan(index_name="datasets-test-2026-01-01t00.00.00+00.00")
     assert result == 0
     assert "Failed to index document" in caplog.text
+
+
+@patch("indexer.opensearch.get_datagovuk_collections", return_value=[])
+def test_mapping_collections_from_json(mock_get_collections, collections_with_topics):
+    mock_get_collections.return_value = collections_with_topics
+    result = list(opensearch.get_collections(index_name="datasets-test-2026-01-01t00.00.00+00.00"))
+    assert result[0]["_source"]["title"] == "test topic"
+    assert result[0]["_source"]["description"] == "Test description"
+    assert result[0]["_source"]["description_raw"] == "test \ndescription\n"
+    assert result[0]["_source"]["created_at"] == "2024-06-06T00:00:00Z"
+    assert result[0]["_source"]["updated_at"] == "2026-08-28T00:00:00Z"
+    assert result[0]["_source"]["collection"] == "collection-name"
