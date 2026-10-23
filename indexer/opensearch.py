@@ -43,6 +43,8 @@ def setup_index():
             "mappings": {
                 "properties": {
                     "uuid": {"type": "keyword"},
+                    "slug": {"type": "keyword"},
+                    "collection": {"type": "keyword"},
                     "source": {"type": "keyword"},
                     "title": {
                         "type": "text",
@@ -112,6 +114,7 @@ async def fetch_ckan_documents(conn: psycopg.AsyncConnection, index_name, row_li
         SELECT
             p.id,
             p.title,
+            p.name,
             p.notes,
             p.metadata_created,
             p.metadata_modified,
@@ -138,6 +141,7 @@ async def fetch_ckan_documents(conn: psycopg.AsyncConnection, index_name, row_li
                 "_source": {
                     "uuid": row["id"],
                     "title": row["title"],
+                    "slug": row["name"],
                     "source": "ckan",
                     "description_raw": row["notes"],
                     "description": stripped_description,
@@ -200,9 +204,11 @@ def _collections(index_name):
                     "title": collection["title"],
                     "source": "collection",
                     "uuid": collection["uuid"],
+                    "slug": collection["slug"],
+                    "collection": collection["collection"],
                     "description": utils.strip_markdown_html(collection.content),
                     "description_raw": collection.content,
-                    "organisations": collection["organisations"],
+                    "organisations": collection["organisations"] or [],
                     "created_at": collection["created_at"],
                     "updated_at": collection["updated_at"],
                 },

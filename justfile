@@ -23,6 +23,7 @@ init:
     brew install libpq
     @echo ""
     @echo "datagovuk-indexer install is initialised for local development. Bringing up the containers with '$ just up'"
+    docker network create datagovuk || true
     just up
 
 # load-db: Load a postgres dump image in to the docker container
