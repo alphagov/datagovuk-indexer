@@ -8,7 +8,7 @@ from opensearchpy import AsyncOpenSearch, OpenSearch, helpers
 from psycopg.rows import dict_row
 
 from config import config
-from indexer import utils
+from indexer import db, utils
 from indexer.datagovuk import get_datagovuk_collections
 
 logger = getLogger(__file__)
@@ -157,8 +157,7 @@ async def fetch_ckan_documents(conn: psycopg.AsyncConnection, index_name, row_li
 
 
 async def _opensearch_index_ckan(index_name, row_limit=None):
-    # Connect using psycopg3's AsyncConnection with dictionary row mapping
-    async with await psycopg.AsyncConnection.connect(config.POSTGRES_DSN, row_factory=dict_row) as pg_conn:
+    async with await db.connect(row_factory=dict_row) as pg_conn:
         opensearch_client = AsyncOpenSearch(hosts=[config.OPENSEARCH_URL])
 
         logger.info("Starting streaming pipeline from Postgres (psycopg3) to OpenSearch...")
