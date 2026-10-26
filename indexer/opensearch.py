@@ -8,8 +8,8 @@ from opensearchpy import AsyncOpenSearch, OpenSearch, helpers
 from psycopg.rows import dict_row
 
 from config import config
-from datagovuk import get_datagovuk_collections
 from indexer import utils
+from indexer.datagovuk import get_datagovuk_collections
 
 logger = getLogger(__file__)
 

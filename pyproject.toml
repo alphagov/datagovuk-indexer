@@ -10,11 +10,11 @@ classifiers = [
 ]
 dependencies = [
   "django-environ==0.14",
-  "httpx==0.28.1",
   "mistune==3.3.4",
   "opensearch-py[async]==3.2",
   "psycopg[binary]==3.3.6",
   "pytest-asyncio==1.4",
+  "requests==2.34.2",
   "selectolax==1",
 ]
 
