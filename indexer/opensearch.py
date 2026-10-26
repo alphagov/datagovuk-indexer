@@ -210,7 +210,7 @@ def get_collections(index_name):
                 "_source": transform_context(
                     {
                         "title": topic["title"],
-                        "source": "collections",
+                        "source": "collection",
                         "collection": collection_name,
                         "uuid": topic_uuid,
                         "slug": topic["slug"],

@@ -87,7 +87,7 @@ def test_index_opensearch_correctly(
         id=str(topic_uuid),
     )["_source"]
     assert indexed_collection["title"] == topic["title"]
-    assert indexed_collection["source"] == "collections"
+    assert indexed_collection["source"] == "collection"
     assert indexed_collection["slug"] == "test-topic"
     assert indexed_collection["collection"] == "collection-name"
     assert indexed_collection["description"] == "Test description"
