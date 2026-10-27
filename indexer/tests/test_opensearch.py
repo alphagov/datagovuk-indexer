@@ -4,6 +4,7 @@ from uuid import uuid5
 import opensearchpy
 import pytest
 from freezegun import freeze_time
+from opensearchpy import RequestsHttpConnection
 
 from config import config
 from indexer import opensearch
@@ -137,11 +138,14 @@ def test_index_opensearch_with_no_indexing(
         opensearch_client.get(index=f"{opensearch_datasets_name}", id="nonexistent")
 
 
+@patch("indexer.opensearch.get_datagovuk_collections")
 def test_index_opensearch_fails_if_no_collections(
+    mock_collections,
     package_factory,
     configured_opensearch_client,
     opensearch_datasets_prefix,
 ):
+    mock_collections.return_value = []
     package_factory()
     result = opensearch.index_opensearch()
     assert result is False
@@ -254,3 +258,52 @@ def test_mapping_collections_from_json(mock_get_collections, collections_with_to
     assert result[0]["_source"]["created_at"] == "2024-06-06T00:00:00Z"
     assert result[0]["_source"]["updated_at"] == "2026-08-28T00:00:00Z"
     assert result[0]["_source"]["collection"] == "collection-name"
+
+
+@patch("indexer.opensearch.OpenSearch")
+@patch("indexer.opensearch.AWSV4SignerAuth")
+@patch("indexer.opensearch.boto3.Session")
+def test_get_client_sets_sigv4_auth(mock_session, mock_auth, mock_opensearch, monkeypatch):
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
+
+    mock_credentials = mock_session.return_value.get_credentials.return_value
+
+    opensearch_client = opensearch.get_client()
+
+    mock_auth.assert_called_once_with(mock_credentials, "eu-west-2")
+
+    mock_opensearch.assert_called_once_with(
+        hosts=[config.OPENSEARCH_URL],
+        http_auth=mock_auth.return_value,
+        connection_class=RequestsHttpConnection,
+    )
+    assert opensearch_client == mock_opensearch.return_value
+
+
+@patch("indexer.opensearch.index_ckan")
+def test_index_opensearch_skips_ckan_when_flag_disabled(
+    mock_index_ckan,
+    collection_factory,
+    configured_opensearch_client,
+    monkeypatch,
+):
+    monkeypatch.setattr(config, "FEATURE_FLAG_INDEX_CKAN", False)
+    result = opensearch.index_opensearch()
+    mock_index_ckan.assert_not_called()
+    assert result is True
+
+
+@patch("indexer.opensearch.index_ckan", return_value=1)
+def test_index_opensearch_runs_ckan_when_flag_enabled(
+    mock_index_ckan,
+    collection_factory,
+    package_factory,
+    configured_opensearch_client,
+    monkeypatch,
+):
+    monkeypatch.setattr(config, "FEATURE_FLAG_INDEX_CKAN", True)
+    package_factory()
+    result = opensearch.index_opensearch()
+    mock_index_ckan.assert_called_once()
+    assert result is True

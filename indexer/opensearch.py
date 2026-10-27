@@ -3,8 +3,9 @@ from datetime import UTC, datetime
 from logging import getLogger
 from uuid import uuid5
 
+import boto3
 import psycopg
-from opensearchpy import AsyncOpenSearch, OpenSearch, helpers
+from opensearchpy import AsyncOpenSearch, AWSV4SignerAuth, OpenSearch, RequestsHttpConnection, helpers
 from psycopg.rows import dict_row
 
 from config import config
@@ -22,7 +23,12 @@ def get_client():
     if not config.OPENSEARCH_URL:
         message = "Missing OPENSEARCH_URL config variable"
         raise BadlyConfiguredError(message)
-    return OpenSearch(hosts=[config.OPENSEARCH_URL])
+
+    session = boto3.Session()
+    credentials = session.get_credentials()
+    region = config.AWS_REGION
+    awsauth = AWSV4SignerAuth(credentials, region)
+    return OpenSearch(hosts=[config.OPENSEARCH_URL], http_auth=awsauth, connection_class=RequestsHttpConnection)
 
 
 def setup_index():
@@ -263,12 +269,13 @@ def index_opensearch(ckan_row_limit=None):
         delete_index(index_name)
         return False
 
-    ckan_success_count = index_ckan(index_name=index_name, row_limit=ckan_row_limit)
+    if config.FEATURE_FLAG_INDEX_CKAN:
+        ckan_success_count = index_ckan(index_name=index_name, row_limit=ckan_row_limit)
 
-    if ckan_success_count == 0:
-        logger.error("Failed to index CKAN datasets/packages.")
-        delete_index(index_name)
-        return False
+        if ckan_success_count == 0:
+            logger.error("Failed to index CKAN datasets/packages.")
+            delete_index(index_name)
+            return False
 
     publish_index(index_name)
     return True

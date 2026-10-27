@@ -37,6 +37,9 @@ You can override environment variables for your local copy by editing .envs/.loc
 | OPENSEARCH_URL | All |
 | POSTGRES_DSN | All |
 | DATAGOVUK_URL | All |
+| AWS_ACCESS_KEY_ID | All |
+| AWS_SECRET_ACCESS_KEY | All |
+| AWS_REGION | All |
 
 ### Bring up the project under docker
 

@@ -10,6 +10,11 @@ from indexer import opensearch
 from .factories import create_package
 
 
+@pytest.fixture(autouse=True)
+def enable_ckan_indexing(monkeypatch):
+    monkeypatch.setattr(config, "FEATURE_FLAG_INDEX_CKAN", True)
+
+
 @pytest.fixture
 def opensearch_url():
     return config.OPENSEARCH_URL
