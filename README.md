@@ -24,6 +24,20 @@ brew install just
 just init
 ```
 
+### Environment variables
+
+Local environment variables are committed to the repository in .envs/.local and are therefore shared between the development team.
+
+You can override environment variables for your local copy by editing .envs/.local-overrides. This allows developers to customise their local instance.
+
+#### Required environment variables
+
+| name | environment |
+|---|---|
+| OPENSEARCH_URL | All |
+| POSTGRES_DSN | All |
+| DATAGOVUK_URL | All |
+
 ### Bring up the project under docker
 
 `just up`
