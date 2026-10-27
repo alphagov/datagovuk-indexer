@@ -19,7 +19,7 @@ jobs:
   build-and-push:
     name: Build and push indexer to integration ECR
     runs-on: ubuntu-latest
-    # environment: integration
+    environment: integration
     permissions:
       id-token: write
       contents: read
