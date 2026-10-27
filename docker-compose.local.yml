@@ -69,6 +69,16 @@ services:
     networks:
       - datagovuk
 
+  # Throwaway node used to build the pre-populated opensearch image (see `just seed-build`).
+  # No volume, so its data stays in the container filesystem and can be copied out with `docker cp`.
+  opensearch-seed:
+    extends:
+      service: opensearch-indexer
+    container_name: opensearch_seed
+    restart: "no"
+    profiles:
+      - seed
+
   opensearch-dashboards:
     image: opensearchproject/opensearch-dashboards:3.7.0
     container_name: opensearch_dashboards
