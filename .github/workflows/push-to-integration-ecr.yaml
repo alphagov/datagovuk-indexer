@@ -1,56 +1,53 @@
-name: Push indexer to integration ECR
+name: Build and push indexer to integration ECR
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - "indexer/**"
+      - "Dockerfile"
+      - ".github/workflows/push-to-integration-ecr.yaml"
   workflow_dispatch:
-    inputs:
-      image_sha:
-        description: 'Full git SHA (40 hex characters) of the image to push. Must already exist in GHCR.'
-        required: true
-        type: string
 
 env:
   APP_NAME: datagovuk-indexer
   AWS_REGION: eu-west-2
-  GHCR_IMAGE: ghcr.io/alphagov/datagovuk-indexer
   ECS_CLUSTER_INTEGRATION: integration
 
 jobs:
-  push_to_integration:
-    name: Push indexer to integration ECR
+  build-and-push:
+    name: Build and push indexer to integration ECR
     runs-on: ubuntu-latest
     environment: integration
     permissions:
       id-token: write
       contents: read
     steps:
-      - name: Validate image SHA
-        id: resolve-sha
-        run: |
-          SHA="${{ inputs.image_sha }}"
-          if [[ ! $SHA =~ ^[a-f0-9]{40}$ ]]; then
-            echo "Error: Invalid SHA format. Must be 40 hex characters."
-            exit 1
-          fi
-          echo "image_sha=${SHA}" >> "$GITHUB_OUTPUT"
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v6.3.0
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.INTEGRATION_DEPLOYER_ROLE_ARN }}
+          role-to-assume: arn:aws:iam::836822603246:role/github-actions-deployer-integration
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: ecr-login
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Install crane
-        uses: imjasonh/setup-crane@v0.7
-
-      - name: Copy image from GHCR to integration ECR
-        run: |
-          crane copy \
-            ${{ env.GHCR_IMAGE }}:${{ steps.resolve-sha.outputs.image_sha }} \
-            ${{ steps.ecr-login.outputs.registry }}/${{ env.APP_NAME }}:${{ steps.resolve-sha.outputs.image_sha }}
+      - name: Build and push to ECR
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.ecr-login.outputs.registry }}/${{ env.APP_NAME }}:${{ github.sha }}
+          cache-to: type=inline
 
       - name: Download current task definition
         run: |
@@ -63,7 +60,7 @@ jobs:
 
       - name: Update task definition with new image
         run: |
-          jq --arg image "${{ steps.ecr-login.outputs.registry }}/${{ env.APP_NAME }}:${{ steps.resolve-sha.outputs.image_sha }}" \
+          jq --arg image "${{ steps.ecr-login.outputs.registry }}/${{ env.APP_NAME }}:${{ github.sha }}" \
             '.containerDefinitions[0].image = $image' \
             task-definition.json > task-definition-updated.json
 
