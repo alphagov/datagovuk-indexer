@@ -2,8 +2,6 @@ export COMPOSE_FILE := "docker-compose.local.yml"
 
 # Pre-populated opensearch image settings (see the seed-* recipes)
 seed_image := "ghcr.io/alphagov/datagovuk-indexer-opensearch"
-seed_ckan_limit := "1000"
-seed_created_since := "2024-01-01"
 seed_datagovuk_url := "http://django:8000"
 seed_platforms := "linux/amd64,linux/arm64"
 seed_build_dir := "build/opensearch-seed"
@@ -129,13 +127,10 @@ seed-index:
     @echo "Starting a fresh seed opensearch node..."
     docker compose --profile seed rm -sf opensearch-seed
     docker compose --profile seed up -d --wait opensearch-seed
-    @echo "Indexing {{seed_ckan_limit}} ckan datasets created since {{seed_created_since}} and all collections..."
     docker compose run --rm \
         -e OPENSEARCH_URL=http://opensearch-seed:9200 \
         -e DATAGOVUK_URL={{seed_datagovuk_url}} \
-        indexer uv run python indexer/cli.py index \
-        --ckan-row-limit {{seed_ckan_limit}} \
-        --ckan-created-since {{seed_created_since}}
+        indexer uv run python indexer/cli.py index
     @echo "Preparing index for a single node image..."
     docker compose --profile seed exec -T opensearch-seed curl -sf -XPUT 'localhost:9200/datasets-*/_settings' \
         -H 'Content-Type: application/json' -d '{"index": {"number_of_replicas": 0}}'
@@ -173,4 +168,4 @@ seed-clean:
 
 # ghcr-login: Log docker in to GHCR using the gh CLI (needs `gh auth refresh -s write:packages`)
 ghcr-login:
-    gh auth token | docker login ghcr.io -u "$(gh api user -q .login)" --password-stdin
+    SSL_CERT_FILE= gh auth token | SSL_CERT_FILE= docker login ghcr.io -u "$(SSL_CERT_FILE= gh api user -q .login)" --password-stdin
