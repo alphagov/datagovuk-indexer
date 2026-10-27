@@ -3,8 +3,9 @@ from datetime import UTC, datetime
 from logging import getLogger
 from uuid import uuid5
 
+import boto3
 import psycopg
-from opensearchpy import AsyncOpenSearch, OpenSearch, helpers
+from opensearchpy import AsyncOpenSearch, AWSV4SignerAuth, OpenSearch, RequestsHttpConnection, helpers
 from psycopg.rows import dict_row
 
 from config import config
@@ -22,7 +23,12 @@ def get_client():
     if not config.OPENSEARCH_URL:
         message = "Missing OPENSEARCH_URL config variable"
         raise BadlyConfiguredError(message)
-    return OpenSearch(hosts=[config.OPENSEARCH_URL])
+
+    session = boto3.Session()
+    credentials = session.get_credentials()
+    region = config.AWS_REGION
+    awsauth = AWSV4SignerAuth(credentials, region)
+    return OpenSearch(hosts=[config.OPENSEARCH_URL], http_auth=awsauth, connection_class=RequestsHttpConnection)
 
 
 def setup_index():

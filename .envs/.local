@@ -1,3 +1,6 @@
 OPENSEARCH_URL=http://opensearch-indexer:9200
 POSTGRES_DSN="postgresql://postgres:postgres_password@postgres:5432/ckan"
 DATAGOVUK_URL="http://django:8000"
+AWS_ACCESS_KEY_ID=test
+AWS_SECRET_ACCESS_KEY=test
+AWS_REGION=eu-west-2
