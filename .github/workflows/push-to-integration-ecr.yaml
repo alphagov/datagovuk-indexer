@@ -44,6 +44,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: ./docker/Dockerfile
           platforms: linux/amd64
           push: true
           tags: ${{ steps.ecr-login.outputs.registry }}/${{ env.APP_NAME }}:${{ github.sha }}
@@ -52,7 +53,7 @@ jobs:
       - name: Download current task definition
         run: |
           aws ecs describe-task-definition \
-            --task-definition ${{ env.APP_NAME }} \
+            --task-definition integration-${{ env.APP_NAME }} \
             --region ${{ env.AWS_REGION }} \
             --query 'taskDefinition' \
             --output json > /tmp/td.json
