@@ -34,7 +34,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/18/data
+      - postgres_data:/var/lib/postgresql
       - ./docker/postgres/init.sh:/docker-entrypoint-initdb.d/01-init.sh:ro
       - ./docker/postgres/ckan-schema.sql:/schema/ckan-schema.sql:ro
     networks:
