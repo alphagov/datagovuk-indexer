@@ -1,3 +1,4 @@
+from datetime import UTC, date, datetime
 from unittest.mock import patch
 from uuid import uuid5
 
@@ -203,6 +204,46 @@ def test_index_opensearch_with_ckan_row_limit(
     opensearch_client.get(index=opensearch_datasets_name, id=str(package_1["id"]))
     with pytest.raises(opensearchpy.exceptions.NotFoundError):
         opensearch_client.get(index=opensearch_datasets_name, id=str(package_2["id"]))
+
+
+def test_index_opensearch_with_ckan_created_since(
+    collection_factory,
+    package_factory,
+    configured_opensearch_client,
+    opensearch_datasets_name,
+):
+    old_package, _ = package_factory(metadata_created=datetime(2023, 12, 31, 23, 59, 59, tzinfo=UTC))
+    new_package, _ = package_factory(metadata_created=datetime(2024, 1, 1, tzinfo=UTC))
+    opensearch_client = configured_opensearch_client
+
+    opensearch.index_opensearch(ckan_created_since=date(2024, 1, 1))
+
+    opensearch_client.get(index=opensearch_datasets_name, id=str(new_package["id"]))
+    with pytest.raises(opensearchpy.exceptions.NotFoundError):
+        opensearch_client.get(index=opensearch_datasets_name, id=str(old_package["id"]))
+
+
+def test_index_opensearch_with_ckan_row_limit_keeps_oldest_packages(
+    collection_factory,
+    package_factory,
+    configured_opensearch_client,
+    opensearch_datasets_name,
+):
+    newest_package, _ = package_factory(metadata_created=datetime(2024, 3, 1, tzinfo=UTC))
+    oldest_package, _ = package_factory(metadata_created=datetime(2024, 1, 1, tzinfo=UTC))
+    middle_package, _ = package_factory(metadata_created=datetime(2024, 2, 1, tzinfo=UTC))
+    opensearch_client = configured_opensearch_client
+
+    opensearch.index_opensearch(ckan_row_limit=2, ckan_created_since=date(2024, 1, 1))
+
+    opensearch_client.indices.refresh(index=opensearch_datasets_name)
+    results = opensearch_client.search(
+        index=opensearch_datasets_name,
+        body={"query": {"term": {"source": "ckan"}}, "sort": [{"created_at": "asc"}]},
+    )
+    indexed_ids = [hit["_id"] for hit in results["hits"]["hits"]]
+    assert indexed_ids == [str(oldest_package["id"]), str(middle_package["id"])]
+    assert str(newest_package["id"]) not in indexed_ids
 
 
 @freeze_time("2026-08-28")

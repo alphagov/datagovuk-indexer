@@ -1,6 +1,7 @@
 import argparse
 import logging
 import sys
+from datetime import date
 
 from indexer.opensearch import clear_opensearch, index_opensearch
 
@@ -22,13 +23,19 @@ def main():
         default=None,
         help="Maximum rows to index",
     )
+    index_parser.add_argument(
+        "--ckan-created-since",
+        type=date.fromisoformat,
+        default=None,
+        help="Only index ckan datasets created on or after this date (YYYY-MM-DD)",
+    )
 
     subparsers.add_parser("clear", help="Clear opensearch")
 
     args = parser.parse_args()
 
     if args.operation == "index":
-        index_opensearch(ckan_row_limit=args.ckan_row_limit)
+        index_opensearch(ckan_row_limit=args.ckan_row_limit, ckan_created_since=args.ckan_created_since)
     elif args.operation == "clear":
         clear_opensearch()
 
