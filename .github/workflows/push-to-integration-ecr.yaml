@@ -69,4 +69,6 @@ jobs:
         run: |
           aws ecs register-task-definition \
             --cli-input-json file://task-definition-updated.json \
-            --region ${{ env.AWS_REGION }}
+            --region ${{ env.AWS_REGION }} \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text
