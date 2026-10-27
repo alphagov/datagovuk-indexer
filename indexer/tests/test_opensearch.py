@@ -279,3 +279,31 @@ def test_get_client_sets_sigv4_auth(mock_session, mock_auth, mock_opensearch, mo
         connection_class=RequestsHttpConnection,
     )
     assert opensearch_client == mock_opensearch.return_value
+
+
+@patch("indexer.opensearch.index_ckan")
+def test_index_opensearch_skips_ckan_when_flag_disabled(
+    mock_index_ckan,
+    collection_factory,
+    configured_opensearch_client,
+    monkeypatch,
+):
+    monkeypatch.setattr(config, "FEATURE_FLAG_INDEX_CKAN", False)
+    result = opensearch.index_opensearch()
+    mock_index_ckan.assert_not_called()
+    assert result is True
+
+
+@patch("indexer.opensearch.index_ckan", return_value=1)
+def test_index_opensearch_runs_ckan_when_flag_enabled(
+    mock_index_ckan,
+    collection_factory,
+    package_factory,
+    configured_opensearch_client,
+    monkeypatch,
+):
+    monkeypatch.setattr(config, "FEATURE_FLAG_INDEX_CKAN", True)
+    package_factory()
+    result = opensearch.index_opensearch()
+    mock_index_ckan.assert_called_once()
+    assert result is True

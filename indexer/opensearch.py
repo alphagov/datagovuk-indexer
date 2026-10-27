@@ -269,12 +269,13 @@ def index_opensearch(ckan_row_limit=None):
         delete_index(index_name)
         return False
 
-    ckan_success_count = index_ckan(index_name=index_name, row_limit=ckan_row_limit)
+    if config.FEATURE_FLAG_INDEX_CKAN:
+        ckan_success_count = index_ckan(index_name=index_name, row_limit=ckan_row_limit)
 
-    if ckan_success_count == 0:
-        logger.error("Failed to index CKAN datasets/packages.")
-        delete_index(index_name)
-        return False
+        if ckan_success_count == 0:
+            logger.error("Failed to index CKAN datasets/packages.")
+            delete_index(index_name)
+            return False
 
     publish_index(index_name)
     return True
