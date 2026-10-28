@@ -72,12 +72,10 @@ def postgres_dsn():
 
 
 @pytest.fixture(autouse=True)
-def override_postgres_settings(postgres_dsn, ckan_connection):
+def override_postgres_settings(postgres_dsn, ckan_connection, monkeypatch):
     # Ensure that our tests all operate on a test postgres DB
-    old_dsn = config.POSTGRES_DSN
-    config.POSTGRES_DSN = postgres_dsn
+    monkeypatch.setattr(config, "POSTGRES_DSN", postgres_dsn)
     yield
-    config.POSTGRES_DSN = old_dsn
     cursor = ckan_connection.cursor()
     cursor.execute("TRUNCATE TABLE package;")
     cursor.execute('TRUNCATE TABLE "group";')

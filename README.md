@@ -35,7 +35,11 @@ You can override environment variables for your local copy by editing .envs/.loc
 | name | environment |
 |---|---|
 | OPENSEARCH_URL | All |
-| POSTGRES_DSN | All |
+| POSTGRES_DSN | Local |
+| RDS_ENDPOINT | Integration, Staging and Production |
+| RDS_USER | Integration, Staging and Production |
+| RDS_NAME | Integration, Staging and Production |
+| RDS_PORT | Integration, Staging and Production |
 | DATAGOVUK_URL | All |
 | AWS_ACCESS_KEY_ID | All |
 | AWS_SECRET_ACCESS_KEY | All |

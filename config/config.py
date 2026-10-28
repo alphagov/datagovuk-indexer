@@ -17,6 +17,11 @@ DATASETS_INDEX = {
 POSTGRES_DSN = env("POSTGRES_DSN", default=None)
 POSTGRES_BATCH_SIZE = 2000
 
+AWS_RDS_ENDPOINT = env("RDS_ENDPOINT", default=None)
+AWS_RDS_USER = env("RDS_USER", default=None)
+AWS_RDS_NAME = env("RDS_NAME", default=None)
+AWS_RDS_PORT = env.int("RDS_PORT", default=5432)
+
 NAMESPACE_UUID = UUID("4f8407d1-1c14-46ee-a858-36b40467aa7f")
 DATAGOVUK_URL = env("DATAGOVUK_URL", default="https://data.gov.uk")
 AWS_REGION = env("AWS_REGION", default="eu-west-2")
