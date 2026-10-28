@@ -8,12 +8,12 @@ import boto3
 from opensearchpy import AsyncOpenSearch, AWSV4SignerAuth, OpenSearch, RequestsHttpConnection, helpers
 from psycopg.rows import dict_row
 
+if TYPE_CHECKING:
+    from psycopg import AsyncConnection
+
 from config import config
 from indexer import database, utils
 from indexer.datagovuk import get_datagovuk_collections
-
-if TYPE_CHECKING:
-    import psycopg
 
 logger = getLogger(__file__)
 
@@ -120,7 +120,7 @@ def transform_context(context):
     return context
 
 
-async def fetch_ckan_documents(conn: psycopg.AsyncConnection, index_name, row_limit=None):
+async def fetch_ckan_documents(conn: AsyncConnection, index_name, row_limit=None):
     query = """
         SELECT
             p.id,
