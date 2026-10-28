@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: ./docker/Dockerfile
+      # target required, without it the last stage (python-run-production) is built by default
       target: python-run-dev
     container_name: datagovuk_indexer
     volumes:

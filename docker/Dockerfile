@@ -29,11 +29,6 @@ RUN chown indexer:indexer ${APP_HOME}
 ENV PATH="/app/.venv/bin:$PATH"
 
 
-FROM python-build-stage AS python-run-production
-
-ENTRYPOINT ["echo", "'TODO'"]
-
-
 FROM python-build-stage AS python-run-dev
 
 # we need to move the virtualenv outside of the $APP_HOME directory because it will be overriden by the docker compose mount
@@ -62,3 +57,12 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 ENV PATH="/${VIRTUAL_ENV}/bin:$PATH"
 ENV PYTHONPATH="${VIRTUAL_ENV}/lib/python3.14/site-packages:/app"
+
+
+# keep prod build stage last so it is the default target
+FROM python-build-stage AS python-run-production
+
+USER indexer
+
+ENTRYPOINT ["python", "-m", "indexer.cli"]
+CMD ["index"]
