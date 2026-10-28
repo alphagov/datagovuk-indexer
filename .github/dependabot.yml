@@ -54,3 +54,8 @@ updates:
         update-types:
           - 'minor'
           - 'patch'
+    ignore:
+      - dependency-name: "opensearchproject/opensearch"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
