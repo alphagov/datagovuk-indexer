@@ -28,7 +28,6 @@ init:
 
 # load-db: Load a postgres dump image in to the docker container
 load-db +args:
-    psql "postgresql://postgres:postgres_password@127.0.0.1:5432/ckan" -c "CREATE EXTENSION IF NOT EXISTS postgis;"
     @echo "Loading ckan backup file...  This could take a while (~1 hour+)"
     pg_restore -d "postgresql://postgres:postgres_password@127.0.0.1:5432/ckan" -j 8 --no-owner --no-privileges {{args}}
 
