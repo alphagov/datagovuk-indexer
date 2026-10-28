@@ -6,7 +6,7 @@ on:
       - main
     paths:
       - "indexer/**"
-      - "Dockerfile"
+      - "docker/**"
       - ".github/workflows/push-to-integration-ecr.yaml"
   workflow_dispatch:
 
@@ -45,6 +45,7 @@ jobs:
         with:
           context: .
           file: ./docker/Dockerfile
+          target: python-run-production
           platforms: linux/amd64
           push: true
           tags: ${{ steps.ecr-login.outputs.registry }}/${{ env.APP_NAME }}:${{ github.sha }}
