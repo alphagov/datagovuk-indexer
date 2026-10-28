@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock, patch
 
+import pytest
 import requests
 
 from config import config
@@ -30,20 +31,18 @@ def test_get_datagovuk_collections_missing_collections_key_returns_empty_list(mo
 
 
 @patch("indexer.datagovuk.requests.get")
-def test_get_datagovuk_collections_returns_empty_list_on_error_status(mock_get):
+def test_get_datagovuk_collections_raises_on_error_status(mock_get):
     mock_response = MagicMock()
     mock_response.raise_for_status.side_effect = requests.HTTPError("500 Server Error")
     mock_get.return_value = mock_response
 
-    result = datagovuk.get_datagovuk_collections()
-
-    assert result == []
+    with pytest.raises(requests.HTTPError):
+        datagovuk.get_datagovuk_collections()
 
 
 @patch("indexer.datagovuk.requests.get")
-def test_get_datagovuk_collections_returns_empty_list_on_request_error(mock_get):
+def test_get_datagovuk_collections_raises_on_request_error(mock_get):
     mock_get.side_effect = requests.ConnectionError("Connection refused")
 
-    result = datagovuk.get_datagovuk_collections()
-
-    assert result == []
+    with pytest.raises(requests.ConnectionError):
+        datagovuk.get_datagovuk_collections()
