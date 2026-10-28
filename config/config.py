@@ -17,12 +17,12 @@ DATASETS_INDEX = {
 POSTGRES_DSN = env("POSTGRES_DSN", default=None)
 POSTGRES_BATCH_SIZE = 2000
 
-AWS_RDS_ENDPOINT = env("RDS_ENDPOINT", default=None)
-AWS_RDS_USER = env("RDS_USER", default=None)
-AWS_RDS_NAME = env("RDS_NAME", default=None)
-AWS_RDS_PORT = env.int("RDS_PORT", default=5432)
+AWS_RDS_ENDPOINT = env("AWS_RDS_ENDPOINT", default=None)
+AWS_RDS_USER = env("AWS_RDS_USER", default=None)
+AWS_RDS_NAME = env("AWS_RDS_NAME", default=None)
+AWS_RDS_PORT = env("AWS_RDS_PORT", default=5432)
+AWS_REGION = env("AWS_REGION", default="eu-west-2")
 
 NAMESPACE_UUID = UUID("4f8407d1-1c14-46ee-a858-36b40467aa7f")
 DATAGOVUK_URL = env("DATAGOVUK_URL", default="https://data.gov.uk")
-AWS_REGION = env("AWS_REGION", default="eu-west-2")
 FEATURE_FLAG_INDEX_CKAN = env.bool("FEATURE_FLAG_INDEX_CKAN", default=False)
