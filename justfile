@@ -1,11 +1,5 @@
 export COMPOSE_FILE := "docker-compose.local.yml"
 
-# Pre-populated opensearch image settings (see the seed-* recipes)
-seed_image := "ghcr.io/alphagov/datagovuk-indexer-opensearch"
-seed_datagovuk_url := "http://django:8000"
-seed_platforms := "linux/amd64,linux/arm64"
-seed_build_dir := "build/opensearch-seed"
-
 
 # Default command to list all available commands.
 default:
@@ -122,6 +116,12 @@ prod-down *args:
     @echo "Stopping production containers..."
     docker compose -f docker-compose.production.yml down {{args}}
 
+# Pre-populated opensearch image settings (see the seed-* recipes)
+seed_image := "ghcr.io/alphagov/datagovuk-indexer-opensearch"
+seed_datagovuk_url := "http://django:8000"
+seed_build_dir := "build/opensearch-seed"
+seed_tag := `git rev-parse --short HEAD`
+
 # seed-index: Index a sample of ckan datasets and all collections in to a throwaway opensearch node
 seed-index:
     @echo "Starting a fresh seed opensearch node..."
@@ -144,22 +144,23 @@ seed-index:
     @echo ""
 
 # seed-build: Build the pre-populated opensearch image locally
-seed-build tag="latest": seed-index
+seed-build: seed-index
     @echo "Stopping seed opensearch node and copying its data..."
     docker compose --profile seed stop opensearch-seed
     rm -rf {{seed_build_dir}}
     mkdir -p {{seed_build_dir}}
     docker cp opensearch_seed:/usr/share/opensearch/data {{seed_build_dir}}/data
     docker compose --profile seed rm -f opensearch-seed
-    @echo "Building {{seed_image}}:{{tag}}..."
-    docker buildx build --load -f docker/opensearch-seed/Dockerfile -t {{seed_image}}:{{tag}} {{seed_build_dir}}
+    @echo "Building {{seed_image}}:{{seed_tag}}..."
+    docker buildx build --load -f docker/opensearch-seed/Dockerfile -t {{seed_image}}:{{seed_tag}} {{seed_build_dir}}
 
-# seed-publish: Push the pre-populated opensearch image built by seed-build to GHCR, e.g. `just seed-publish 2026-10-27`
-seed-publish tag:
-    @test -d {{seed_build_dir}}/data || (echo "No seed data found in {{seed_build_dir}}; run 'just seed-build' first." && exit 1)
-    @echo "Publishing {{seed_image}}:{{tag}} and {{seed_image}}:latest for {{seed_platforms}}..."
-    docker buildx build --push --platform {{seed_platforms}} -f docker/opensearch-seed/Dockerfile \
-        -t {{seed_image}}:{{tag}} -t {{seed_image}}:latest {{seed_build_dir}}
+# seed-publish: Push the pre-populated opensearch image built by seed-build to GHCR
+seed-publish:
+    @echo "Tagging {{seed_image}}:{{seed_tag}} as latest..."
+    docker tag {{seed_image}}:{{seed_tag}} {{seed_image}}:latest
+    @echo "Publishing {{seed_image}}:{{seed_tag}} and {{seed_image}}:latest..."
+    docker push {{seed_image}}:{{seed_tag}}
+    docker push {{seed_image}}:latest
 
 # seed-clean: Remove the seed opensearch node and copied seed data
 seed-clean:
