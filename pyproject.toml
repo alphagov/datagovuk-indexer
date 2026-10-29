@@ -95,6 +95,9 @@ lint.ignore = [
   # Deactivated because it can make the code slow:
   # https://github.com/astral-sh/ruff/issues/7871
 ]
+lint.per-file-ignores."indexer/tests/*" = [
+  "PLR0913", # pytest fixtures are injected as arguments
+]
 lint.isort.combine-as-imports = true
 lint.isort.force-single-line = false
 

@@ -30,18 +30,42 @@ def opensearch_datasets_template_name(opensearch_datasets_prefix):
     return f"{opensearch_datasets_prefix}template"
 
 
-@pytest.fixture(autouse=True)
-def override_opensearch_settings(opensearch_datasets_name):
-    # Ensure that our tests all operate on a different opensearch prefix
-    config.DATASETS_INDEX["name"] = opensearch_datasets_name
-    config.DATASETS_INDEX["priority"] = 101
+@pytest.fixture
+def opensearch_collections_name():
+    return "collections-test"
 
 
 @pytest.fixture
-def clear_opensearch(opensearch_datasets_name, opensearch_datasets_prefix, opensearch_datasets_template_name):
+def opensearch_collections_prefix(opensearch_collections_name):
+    return f"{opensearch_collections_name}-"
+
+
+@pytest.fixture
+def opensearch_collections_template_name(opensearch_collections_prefix):
+    return f"{opensearch_collections_prefix}template"
+
+
+@pytest.fixture(autouse=True)
+def override_opensearch_settings(opensearch_datasets_name, opensearch_collections_name):
+    # Ensure that our tests all operate on a different opensearch prefix
+    config.DATASETS_INDEX["name"] = opensearch_datasets_name
+    config.DATASETS_INDEX["priority"] = 101
+    config.COLLECTIONS_INDEX["name"] = opensearch_collections_name
+    config.COLLECTIONS_INDEX["priority"] = 101
+
+
+@pytest.fixture
+def clear_opensearch(
+    opensearch_datasets_prefix,
+    opensearch_datasets_template_name,
+    opensearch_collections_prefix,
+    opensearch_collections_template_name,
+):
     def _clear(client):
         client.indices.delete(index=f"{opensearch_datasets_prefix}*", ignore=[404])
         client.indices.delete_index_template(name=opensearch_datasets_template_name, ignore=[404])
+        client.indices.delete(index=f"{opensearch_collections_prefix}*", ignore=[404])
+        client.indices.delete_index_template(name=opensearch_collections_template_name, ignore=[404])
 
     return _clear
 
@@ -57,7 +81,7 @@ def opensearch_client(opensearch_url, clear_opensearch):
 
 @pytest.fixture
 def configured_opensearch_client(opensearch_client):
-    opensearch.setup_index()
+    opensearch.setup_indices()
     return opensearch_client
 
 
@@ -113,6 +137,11 @@ def collections_with_topics():
 @pytest.fixture
 def collection_factory(collections_with_topics, monkeypatch):
     monkeypatch.setattr("indexer.opensearch.get_datagovuk_collections", lambda: collections_with_topics)
+
+
+@pytest.fixture
+def no_collections(monkeypatch):
+    monkeypatch.setattr("indexer.opensearch.get_datagovuk_collections", list)
 
 
 @pytest.fixture

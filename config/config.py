@@ -13,6 +13,14 @@ DATASETS_INDEX = {
     },
     "priority": 100,
 }
+COLLECTIONS_INDEX = {
+    "name": "collections",
+    "settings": {
+        "number_of_shards": 1,
+        "number_of_replicas": 1,
+    },
+    "priority": 100,
+}
 
 POSTGRES_DSN = env("POSTGRES_DSN", default=None)
 POSTGRES_BATCH_SIZE = 2000

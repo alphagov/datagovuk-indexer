@@ -23,14 +23,26 @@ def test_get_client_success():
     assert client.ping() is True
 
 
-def test_setup_index_adds_index_template_successfully(opensearch_datasets_template_name, opensearch_client):
-    opensearch.setup_index()
-    templates = opensearch_client.indices.get_index_template(name=opensearch_datasets_template_name)
-    assert templates["index_templates"][0]["name"] == opensearch_datasets_template_name
-    assert (
-        templates["index_templates"][0]["index_template"]["template"]["mappings"]["properties"]["uuid"]["type"]
-        == "keyword"
-    )
+def _get_template_properties(client, template_name):
+    templates = client.indices.get_index_template(name=template_name)
+    assert templates["index_templates"][0]["name"] == template_name
+    return templates["index_templates"][0]["index_template"]["template"]["mappings"]["properties"]
+
+
+def test_setup_indices_adds_index_templates_successfully(
+    opensearch_datasets_template_name,
+    opensearch_collections_template_name,
+    opensearch_client,
+):
+    opensearch.setup_indices()
+
+    datasets_properties = _get_template_properties(opensearch_client, opensearch_datasets_template_name)
+    assert datasets_properties["uuid"]["type"] == "keyword"
+    assert "collection" not in datasets_properties
+
+    collections_properties = _get_template_properties(opensearch_client, opensearch_collections_template_name)
+    assert collections_properties["uuid"]["type"] == "keyword"
+    assert collections_properties["collection"]["type"] == "keyword"
 
 
 def _get_utc(dt):
@@ -43,6 +55,7 @@ def test_index_opensearch_correctly(
     package_factory,
     configured_opensearch_client,
     opensearch_datasets_name,
+    opensearch_collections_name,
 ):
     collection = collections_with_topics[0]
     topic = collection["topics"][0]
@@ -61,7 +74,6 @@ def test_index_opensearch_correctly(
     )["_source"]
     assert indexed_package_1["title"] == package_1["title"]
     assert indexed_package_1["slug"] == package_1["name"]
-    assert indexed_package_1["source"] == "ckan"
     assert indexed_package_1["description_raw"] == package_1["notes"]
     assert indexed_package_1["created_at"] == _get_utc(package_1["metadata_created"]).isoformat()
     assert indexed_package_1["updated_at"] == _get_utc(package_1["metadata_modified"]).isoformat()
@@ -75,7 +87,6 @@ def test_index_opensearch_correctly(
     )["_source"]
     assert indexed_package_2["title"] == package_2["title"]
     assert indexed_package_2["slug"] == package_2["name"]
-    assert indexed_package_2["source"] == "ckan"
     assert indexed_package_2["description_raw"] == package_2["notes"]
     assert indexed_package_2["created_at"] == _get_utc(package_2["metadata_created"]).isoformat()
     assert indexed_package_2["updated_at"] == _get_utc(package_2["metadata_modified"]).isoformat()
@@ -84,17 +95,21 @@ def test_index_opensearch_correctly(
     assert indexed_package_2["organisations"][0]["name"] == org_2["title"]
 
     indexed_collection = opensearch_client.get(
-        index=f"{opensearch_datasets_name}",
+        index=f"{opensearch_collections_name}",
         id=str(topic_uuid),
     )["_source"]
     assert indexed_collection["title"] == topic["title"]
-    assert indexed_collection["source"] == "collection"
     assert indexed_collection["slug"] == "test-topic"
     assert indexed_collection["collection"] == "collection-name"
     assert indexed_collection["description"] == "Test description"
     assert indexed_collection["description_raw"] == topic["description"]
     assert indexed_collection["organisations"] == []
     assert indexed_collection["updated_at"] == topic["page-last-updated"]
+
+    with pytest.raises(opensearchpy.exceptions.NotFoundError):
+        opensearch_client.get(index=opensearch_datasets_name, id=str(topic_uuid))
+    with pytest.raises(opensearchpy.exceptions.NotFoundError):
+        opensearch_client.get(index=opensearch_collections_name, id=str(package_1["id"]))
 
 
 def test_index_opensearch_with_deleted_package_not_indexed(
@@ -127,6 +142,7 @@ def test_index_opensearch_with_deleted_package_not_indexed(
 
 
 def test_index_opensearch_with_no_indexing(
+    no_collections,
     configured_opensearch_client,
     opensearch_datasets_name,
 ):
@@ -139,24 +155,32 @@ def test_index_opensearch_with_no_indexing(
 
 
 def test_index_opensearch_fails_if_no_collections(
+    no_collections,
     package_factory,
     configured_opensearch_client,
     opensearch_datasets_prefix,
+    opensearch_collections_prefix,
 ):
     package_factory()
     result = opensearch.index_opensearch()
     assert result is False
     assert not configured_opensearch_client.indices.get(index=f"{opensearch_datasets_prefix}*", ignore=[404])
+    assert not configured_opensearch_client.indices.get(index=f"{opensearch_collections_prefix}*", ignore=[404])
 
 
+@freeze_time("2026-08-28")
 def test_index_opensearch_fails_if_no_ckan(
     collection_factory,
     configured_opensearch_client,
     opensearch_datasets_prefix,
+    opensearch_collections_name,
 ):
     result = opensearch.index_opensearch()
     assert result is False
     assert not configured_opensearch_client.indices.get(index=f"{opensearch_datasets_prefix}*", ignore=[404])
+    # Collections are indexed and published before CKAN, so they remain available
+    collections_aliases = configured_opensearch_client.indices.get_alias(name=opensearch_collections_name)
+    assert list(collections_aliases.keys()) == [f"{opensearch_collections_name}-2026-08-28t00.00.00+00.00"]
 
 
 def test_index_opensearch_alias_moves_on_reindex(
@@ -164,25 +188,53 @@ def test_index_opensearch_alias_moves_on_reindex(
     package_factory,
     configured_opensearch_client,
     opensearch_datasets_name,
+    opensearch_collections_name,
 ):
     package_factory()
     opensearch_client = configured_opensearch_client
 
     with freeze_time("2026-08-28"):
         opensearch.index_opensearch()
-    first_aliases = opensearch_client.indices.get_alias(name=opensearch_datasets_name)
-    first_index = next(iter(first_aliases.keys()))
+    first_datasets_aliases = opensearch_client.indices.get_alias(name=opensearch_datasets_name)
+    first_collections_aliases = opensearch_client.indices.get_alias(name=opensearch_collections_name)
 
     package_factory()
     with freeze_time("2026-08-29"):
         opensearch.index_opensearch()
-    second_aliases = opensearch_client.indices.get_alias(name=opensearch_datasets_name)
-    second_index = next(iter(second_aliases.keys()))
+    second_datasets_aliases = opensearch_client.indices.get_alias(name=opensearch_datasets_name)
+    second_collections_aliases = opensearch_client.indices.get_alias(name=opensearch_collections_name)
 
-    assert first_index == f"{opensearch_datasets_name}-2026-08-28t00.00.00+00.00"
-    assert second_index == f"{opensearch_datasets_name}-2026-08-29t00.00.00+00.00"
-    aliases = opensearch_client.indices.get_alias(index=first_index)
-    assert opensearch_datasets_name not in aliases[first_index]["aliases"]
+    first_datasets_index = f"{opensearch_datasets_name}-2026-08-28t00.00.00+00.00"
+    first_collections_index = f"{opensearch_collections_name}-2026-08-28t00.00.00+00.00"
+    assert list(first_datasets_aliases.keys()) == [first_datasets_index]
+    assert list(first_collections_aliases.keys()) == [first_collections_index]
+    assert list(second_datasets_aliases.keys()) == [f"{opensearch_datasets_name}-2026-08-29t00.00.00+00.00"]
+    assert list(second_collections_aliases.keys()) == [f"{opensearch_collections_name}-2026-08-29t00.00.00+00.00"]
+
+    aliases = opensearch_client.indices.get_alias(index=first_datasets_index)
+    assert opensearch_datasets_name not in aliases[first_datasets_index]["aliases"]
+    aliases = opensearch_client.indices.get_alias(index=first_collections_index)
+    assert opensearch_collections_name not in aliases[first_collections_index]["aliases"]
+
+
+def test_publish_index_only_moves_given_alias(
+    configured_opensearch_client,
+    opensearch_datasets_name,
+    opensearch_collections_name,
+):
+    opensearch_client = configured_opensearch_client
+    datasets_index = f"{opensearch_datasets_name}-x"
+    collections_index = f"{opensearch_collections_name}-x"
+    opensearch_client.indices.create(index=datasets_index)
+    opensearch_client.indices.create(index=collections_index)
+
+    opensearch.publish_index(index_name=datasets_index, index_alias=opensearch_datasets_name)
+    opensearch.publish_index(index_name=collections_index, index_alias=opensearch_collections_name)
+
+    datasets_aliases = opensearch_client.indices.get_alias(name=opensearch_datasets_name)
+    collections_aliases = opensearch_client.indices.get_alias(name=opensearch_collections_name)
+    assert list(datasets_aliases.keys()) == [datasets_index]
+    assert list(collections_aliases.keys()) == [collections_index]
 
 
 def test_index_opensearch_with_ckan_row_limit(
@@ -235,7 +287,7 @@ def test_index_opensearch_with_ckan_row_limit_keeps_oldest_packages(
     opensearch_client.indices.refresh(index=opensearch_datasets_name)
     results = opensearch_client.search(
         index=opensearch_datasets_name,
-        body={"query": {"term": {"source": "ckan"}}, "sort": [{"created_at": "asc"}]},
+        body={"query": {"match_all": {}}, "sort": [{"created_at": "asc"}]},
     )
     indexed_ids = [hit["_id"] for hit in results["hits"]["hits"]]
     assert indexed_ids == [str(oldest_package["id"]), str(middle_package["id"])]
@@ -249,23 +301,33 @@ def test_clear_opensearch_clears_successfully(
     configured_opensearch_client,
     opensearch_datasets_name,
     opensearch_datasets_template_name,
+    opensearch_collections_name,
+    opensearch_collections_template_name,
 ):
     package_factory()
     opensearch_client = configured_opensearch_client
     opensearch.index_opensearch()
 
-    expected_index_name = opensearch_datasets_name + "-2026-08-28t00.00.00+00.00"
+    expected_index_names = [
+        opensearch_datasets_name + "-2026-08-28t00.00.00+00.00",
+        opensearch_collections_name + "-2026-08-28t00.00.00+00.00",
+    ]
+    expected_template_names = [opensearch_datasets_template_name, opensearch_collections_template_name]
     all_indices = list(opensearch_client.indices.get(index="*").keys())
-    assert expected_index_name in all_indices
     all_templates = [template["name"] for template in opensearch_client.indices.get_index_template()["index_templates"]]
-    assert opensearch_datasets_template_name in all_templates
+    for index_name in expected_index_names:
+        assert index_name in all_indices
+    for template_name in expected_template_names:
+        assert template_name in all_templates
 
     opensearch.clear_opensearch()
 
     all_indices = list(opensearch_client.indices.get(index="*").keys())
-    assert expected_index_name not in all_indices
     all_templates = [template["name"] for template in opensearch_client.indices.get_index_template()["index_templates"]]
-    assert opensearch_datasets_template_name not in all_templates
+    for index_name in expected_index_names:
+        assert index_name not in all_indices
+    for template_name in expected_template_names:
+        assert template_name not in all_templates
 
 
 def test_transform_context_transforms_nested_list():
@@ -274,7 +336,7 @@ def test_transform_context_transforms_nested_list():
 
 
 def test_index_collections_logs_warning_on_errors(mock_bulk_with_error, caplog, collection_factory):
-    opensearch.index_collections(index_name="datasets-test-2026-01-01t00.00.00+00.00")
+    opensearch.index_collections(index_name="collections-test-2026-01-01t00.00.00+00.00")
     assert "Failed to index 1 collection documents due to errors" in caplog.text
 
 
@@ -288,7 +350,7 @@ def test_index_ckan_logs_warning_on_failure(failing_bulk_index, caplog, package_
 @patch("indexer.opensearch.get_datagovuk_collections", return_value=[])
 def test_mapping_collections_from_json(mock_get_collections, collections_with_topics):
     mock_get_collections.return_value = collections_with_topics
-    result = list(opensearch.get_collections(index_name="datasets-test-2026-01-01t00.00.00+00.00"))
+    result = list(opensearch.get_collections(index_name="collections-test-2026-01-01t00.00.00+00.00"))
     assert result[0]["_source"]["title"] == "test topic"
     assert result[0]["_source"]["description"] == "Test description"
     assert result[0]["_source"]["description_raw"] == "Test <p>description</p>"

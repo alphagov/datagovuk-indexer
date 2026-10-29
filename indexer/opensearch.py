@@ -25,7 +25,12 @@ def get_client():
     return OpenSearch(hosts=[config.OPENSEARCH_URL])
 
 
-def setup_index():
+def setup_indices():
+    _setup_datasets_index()
+    _setup_collections_index()
+
+
+def _setup_datasets_index():
     datasets_prefix = f"{config.DATASETS_INDEX['name']}-"
     datasets_template = {
         "index_patterns": [f"{datasets_prefix}*"],
@@ -46,8 +51,6 @@ def setup_index():
                 "properties": {
                     "uuid": {"type": "keyword"},
                     "slug": {"type": "keyword"},
-                    "collection": {"type": "keyword"},
-                    "source": {"type": "keyword"},
                     "title": {
                         "type": "text",
                         "fields": {
@@ -96,6 +99,79 @@ def setup_index():
     client = get_client()
     template_name = f"{datasets_prefix}template"
     client.indices.put_index_template(name=template_name, body=datasets_template)
+    logger.info("Index template '%s' configured.", template_name)
+
+
+def _setup_collections_index():
+    collections_prefix = f"{config.COLLECTIONS_INDEX['name']}-"
+    collections_template = {
+        "index_patterns": [f"{collections_prefix}*"],
+        "template": {
+            "settings": {
+                "number_of_shards": config.COLLECTIONS_INDEX["settings"]["number_of_shards"],
+                "number_of_replicas": config.COLLECTIONS_INDEX["settings"]["number_of_replicas"],
+                "analysis": {
+                    "normalizer": {
+                        "lowercase_normalizer": {
+                            "type": "custom",
+                            "filter": ["lowercase"],
+                        },
+                    },
+                },
+            },
+            "mappings": {
+                "properties": {
+                    "uuid": {"type": "keyword"},
+                    "slug": {"type": "keyword"},
+                    "collection": {"type": "keyword"},
+                    "title": {
+                        "type": "text",
+                        "fields": {
+                            "keyword": {"type": "keyword", "ignore_above": 256},
+                            "english": {"type": "text", "analyzer": "english"},
+                        },
+                    },
+                    "description": {
+                        "type": "text",
+                        "fields": {
+                            "keyword": {"type": "keyword", "ignore_above": 256},
+                            "english": {"type": "text", "analyzer": "english"},
+                        },
+                    },
+                    "description_raw": {
+                        "type": "text",
+                        "fields": {
+                            "keyword": {"type": "keyword", "ignore_above": 256},
+                        },
+                    },
+                    "organisations": {
+                        "type": "object",
+                        "properties": {
+                            "uuid": {"type": "keyword"},
+                            "slug": {
+                                "type": "keyword",
+                                "normalizer": "lowercase_normalizer",
+                            },
+                            "name": {
+                                "type": "text",
+                                "fields": {
+                                    "keyword": {"type": "keyword", "ignore_above": 256},
+                                    "english": {"type": "text", "analyzer": "english"},
+                                },
+                            },
+                        },
+                    },
+                    "created_at": {"type": "date"},
+                    "updated_at": {"type": "date"},
+                },
+            },
+        },
+        "priority": config.COLLECTIONS_INDEX["priority"],
+    }
+
+    client = get_client()
+    template_name = f"{collections_prefix}template"
+    client.indices.put_index_template(name=template_name, body=collections_template)
     logger.info("Index template '%s' configured.", template_name)
 
 
@@ -156,7 +232,6 @@ async def fetch_ckan_documents(
                     "uuid": row["id"],
                     "title": row["title"],
                     "slug": row["name"],
-                    "source": "ckan",
                     "description_raw": row["notes"],
                     "description": stripped_description,
                     "created_at": row["metadata_created"],
@@ -222,7 +297,6 @@ def get_collections(index_name):
                 "_source": transform_context(
                     {
                         "title": topic["title"],
-                        "source": "collection",
                         "collection": collection_name,
                         "uuid": topic_uuid,
                         "slug": topic["slug"],
@@ -267,28 +341,31 @@ def index_ckan(index_name, row_limit=None, created_since: date | None = None):
 
 def index_opensearch(ckan_row_limit=None, ckan_created_since: date | None = None):
     index_suffix = datetime.now(tz=UTC).replace(microsecond=0).isoformat().replace(":", ".").replace("T", "t")
-    index_name = f"{config.DATASETS_INDEX['name']}-{index_suffix}"
 
-    setup_index()
-    collections_success_count = index_collections(index_name=index_name)
+    setup_indices()
 
+    collections_index_name = f"{config.COLLECTIONS_INDEX['name']}-{index_suffix}"
+    collections_success_count = index_collections(index_name=collections_index_name)
     if collections_success_count == 0:
         logger.error("Failed to index collections.")
-        delete_index(index_name)
+        delete_index(collections_index_name)
         return False
 
+    publish_index(index_name=collections_index_name, index_alias=config.COLLECTIONS_INDEX["name"])
+
+    datasets_index_name = f"{config.DATASETS_INDEX['name']}-{index_suffix}"
     ckan_success_count = index_ckan(
-        index_name=index_name,
+        index_name=datasets_index_name,
         row_limit=ckan_row_limit,
         created_since=ckan_created_since,
     )
 
     if ckan_success_count == 0:
         logger.error("Failed to index CKAN datasets/packages.")
-        delete_index(index_name)
+        delete_index(datasets_index_name)
         return False
 
-    publish_index(index_name)
+    publish_index(index_name=datasets_index_name, index_alias=config.DATASETS_INDEX["name"])
     return True
 
 
@@ -298,13 +375,13 @@ def delete_index(index_name):
     logger.info("Index %s deleted.", index_name)
 
 
-def publish_index(index_name):
-    logger.info("Switching alias to new index...")
+def publish_index(index_name, index_alias):
+    logger.info("Switching alias '%s' to point to new index '%s'...", index_alias, index_name)
     opensearch_client = get_client()
     alias_body = {
         "actions": [
-            {"remove": {"index": "*", "alias": config.DATASETS_INDEX["name"]}},
-            {"add": {"index": index_name, "alias": config.DATASETS_INDEX["name"]}},
+            {"remove": {"index": f"{index_alias}-*", "alias": index_alias}},
+            {"add": {"index": index_name, "alias": index_alias}},
         ],
     }
     opensearch_client.indices.update_aliases(body=alias_body)
@@ -314,9 +391,9 @@ def publish_index(index_name):
 def clear_opensearch():
     logger.info("Clearing indeces...")
     opensearch_client = get_client()
-    datasets_prefix = f"{config.DATASETS_INDEX['name']}-"
-    opensearch_client.indices.delete(index=f"{datasets_prefix}*")
-    logger.info("Clearing index templates...")
-    template_name = f"{datasets_prefix}template"
-    opensearch_client.indices.delete_index_template(name=template_name)
+    for index_config in (config.DATASETS_INDEX, config.COLLECTIONS_INDEX):
+        prefix = f"{index_config['name']}-"
+        opensearch_client.indices.delete(index=f"{prefix}*", ignore=[404])
+        logger.info("Clearing index template for '%s'...", index_config["name"])
+        opensearch_client.indices.delete_index_template(name=f"{prefix}template", ignore=[404])
     logger.info("Clearing opensearch complete.")
