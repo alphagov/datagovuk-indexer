@@ -42,7 +42,7 @@ services:
       - datagovuk
 
   opensearch-indexer:
-    image: opensearchproject/opensearch:3.7.0
+    image: opensearchproject/opensearch:3.9.0
     container_name: opensearch_node
     restart: always
     environment:
