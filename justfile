@@ -151,13 +151,15 @@ seed-index:
     @echo "Preparing index for a single node image..."
     docker compose --profile seed exec -T opensearch-seed curl -sf -XPUT 'localhost:9200/datasets-*/_settings' \
         -H 'Content-Type: application/json' -d '{"index": {"number_of_replicas": 0}}'
+    docker compose --profile seed exec -T opensearch-seed curl -sf -XPUT 'localhost:9200/collections-*/_settings' \
+        -H 'Content-Type: application/json' -d '{"index": {"number_of_replicas": 0}}'
     @echo ""
     docker compose --profile seed exec -T opensearch-seed curl -sf -XPOST 'localhost:9200/_flush'
     @echo ""
     @echo "Indexed document counts:"
-    docker compose --profile seed exec -T opensearch-seed curl -sf 'localhost:9200/datasets/_count?q=source:ckan'
+    docker compose --profile seed exec -T opensearch-seed curl -sf 'localhost:9200/datasets/_count'
     @echo ""
-    docker compose --profile seed exec -T opensearch-seed curl -sf 'localhost:9200/datasets/_count?q=source:collection'
+    docker compose --profile seed exec -T opensearch-seed curl -sf 'localhost:9200/collections/_count'
     @echo ""
 
 # seed-build: Build the pre-populated opensearch image locally
