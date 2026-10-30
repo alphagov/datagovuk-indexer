@@ -6,7 +6,10 @@ on:
       - main
     paths:
       - "indexer/**"
+      - "config/**"
       - "docker/**"
+      - "pyproject.toml"
+      - "uv.lock"
       - ".github/workflows/push-to-integration-ecr.yaml"
   workflow_dispatch:
 
