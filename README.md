@@ -87,10 +87,7 @@ The data should now be browsable on the opensearch dashboard, in a browser do th
 
 ## Publishing a pre-populated opensearch image
 
-We publish an opensearch image to GHCR which already contains a small, mostly stable set of data:
-
-- the first 1000 active ckan datasets created on or after 2024-01-01 (oldest first)
-- all datagovuk collections
+We publish an opensearch image to GHCR which contains representative collections (from datagovuk) and datasets (from ckan).
 
 This lets other projects run against realistic search data without loading a ckan DB dump or running the indexer.
 The image is built on demand, using the `seed-*` justfile recipes.
@@ -120,15 +117,12 @@ curl 'localhost:9201/datasets/_count?q=source:ckan'
 
 ### Publish to GHCR
 
-`seed-publish` pushes the data from the last `seed-build`, tagged with the given tag and `latest`, for both amd64 and arm64:
+`seed-publish` pushes the data from the last `seed-build`, tagged with the latest git commit sha and `latest`, for both amd64 and arm64:
 
 ```
 just ghcr-login
-just seed-publish 2026-10-27
+just seed-publish
 ```
-
-The first time the image is published, its package will be private.
-Change its visibility in the package settings on GitHub if it should be public.
 
 `just seed-clean` removes the seed container and the copied data.
 
