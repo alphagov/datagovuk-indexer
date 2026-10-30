@@ -121,6 +121,7 @@ seed_image := "ghcr.io/alphagov/datagovuk-indexer-opensearch"
 seed_datagovuk_url := "http://django:8000"
 seed_build_dir := "build/opensearch-seed"
 seed_tag := `git rev-parse --short HEAD`
+seed_platforms := "linux/amd64,linux/arm64"
 
 # seed-index: Index a sample of ckan datasets and all collections in to a throwaway opensearch node
 seed-index:
@@ -156,11 +157,18 @@ seed-build: seed-index
 
 # seed-publish: Push the pre-populated opensearch image built by seed-build to GHCR
 seed-publish:
-    @echo "Tagging {{seed_image}}:{{seed_tag}} as latest..."
-    docker tag {{seed_image}}:{{seed_tag}} {{seed_image}}:latest
-    @echo "Publishing {{seed_image}}:{{seed_tag}} and {{seed_image}}:latest..."
-    docker push {{seed_image}}:{{seed_tag}}
-    docker push {{seed_image}}:latest
+    just ghcr-login
+    @test -d {{seed_build_dir}}/data || (echo "No seed data found in {{seed_build_dir}}; run 'just seed-build' first." && exit 1)
+    @echo "Publishing {{seed_image}}:{{seed_tag}} and {{seed_image}}:latest for {{seed_platforms}}..."
+    docker buildx build \
+        --progress=plain \
+        --cache-from type=registry,ref={{seed_image}}:latest \
+        --push \
+        --platform {{seed_platforms}} \
+        -f docker/opensearch-seed/Dockerfile \
+        -t {{seed_image}}:{{seed_tag}} \
+        -t {{seed_image}}:latest \
+        {{seed_build_dir}}
 
 # seed-clean: Remove the seed opensearch node and copied seed data
 seed-clean:
