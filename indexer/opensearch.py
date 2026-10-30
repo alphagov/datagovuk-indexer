@@ -1,5 +1,5 @@
 import asyncio
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from logging import getLogger
 from typing import TYPE_CHECKING
 from uuid import uuid5
@@ -120,7 +120,12 @@ def transform_context(context):
     return context
 
 
-async def fetch_ckan_documents(conn: AsyncConnection, index_name, row_limit=None):
+async def fetch_ckan_documents(
+    conn: AsyncConnection,
+    index_name,
+    row_limit=None,
+    created_since=None,
+):
     query = """
         SELECT
             p.id,
@@ -136,13 +141,20 @@ async def fetch_ckan_documents(conn: AsyncConnection, index_name, row_limit=None
         INNER JOIN "group" AS org ON p.owner_org=org.id
         WHERE p.state='active'
     """
+    if created_since:
+        query += """
+        AND p.metadata_created >= %(created_since)s
+        """
+    query += """
+        ORDER BY p.metadata_created, p.id
+    """
     if row_limit:
         query += f"""
         LIMIT {row_limit}
         """
     async with conn.cursor(name="package_stream_cursor") as cursor:
         cursor.itersize = config.POSTGRES_BATCH_SIZE
-        await cursor.execute(query)
+        await cursor.execute(query, {"created_since": created_since})
 
         async for row in cursor:
             stripped_description = await utils.strip_markdown_and_html(row["notes"])
@@ -169,7 +181,7 @@ async def fetch_ckan_documents(conn: AsyncConnection, index_name, row_limit=None
             }
 
 
-async def _opensearch_index_ckan(index_name, row_limit=None):
+async def _opensearch_index_ckan(index_name, row_limit=None, created_since=None):
     async with await database.connect(row_factory=dict_row) as pg_conn:
         opensearch_client = AsyncOpenSearch(hosts=[config.OPENSEARCH_URL])
 
@@ -180,7 +192,7 @@ async def _opensearch_index_ckan(index_name, row_limit=None):
         errors = []
         async for success, info in helpers.async_streaming_bulk(
             client=opensearch_client,
-            actions=fetch_ckan_documents(pg_conn, index_name, row_limit=row_limit),
+            actions=fetch_ckan_documents(pg_conn, index_name, row_limit=row_limit, created_since=created_since),
             chunk_size=config.POSTGRES_BATCH_SIZE,
             max_chunk_bytes=10 * 1024 * 1024,  # 10 MB chunk limit
             raise_on_error=False,
@@ -246,9 +258,11 @@ def index_collections(index_name):
     return success_count
 
 
-def index_ckan(index_name, row_limit=None):
+def index_ckan(index_name, row_limit=None, created_since: date | None = None):
     logger.info("Indexing ckan datasets")
-    results = asyncio.run(_opensearch_index_ckan(index_name=index_name, row_limit=row_limit))
+    results = asyncio.run(
+        _opensearch_index_ckan(index_name=index_name, row_limit=row_limit, created_since=created_since),
+    )
     logger.info("Successfully Indexed %s ckan documents.", results["success_count"])
     if results["failure_count"]:
         logger.warning(
@@ -259,7 +273,7 @@ def index_ckan(index_name, row_limit=None):
     return results["success_count"]
 
 
-def index_opensearch(ckan_row_limit=None):
+def index_opensearch(ckan_row_limit=None, ckan_created_since: date | None = None):
     index_suffix = datetime.now(tz=UTC).replace(microsecond=0).isoformat().replace(":", ".").replace("T", "t")
     index_name = f"{config.DATASETS_INDEX['name']}-{index_suffix}"
 
@@ -272,8 +286,11 @@ def index_opensearch(ckan_row_limit=None):
         return False
 
     if config.FEATURE_FLAG_INDEX_CKAN:
-        ckan_success_count = index_ckan(index_name=index_name, row_limit=ckan_row_limit)
-
+        ckan_success_count = index_ckan(
+            index_name=index_name,
+            row_limit=ckan_row_limit,
+            created_since=ckan_created_since,
+        )
         if ckan_success_count == 0:
             logger.error("Failed to index CKAN datasets/packages.")
             delete_index(index_name)

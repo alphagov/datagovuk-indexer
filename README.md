@@ -85,6 +85,57 @@ The data should now be browsable on the opensearch dashboard, in a browser do th
 - Go to http://localhost:5601/app/data-explorer/discover - you should see opensearch documents for all datasets!
 
 
+## Publishing a pre-populated opensearch image
+
+We publish an opensearch image to GHCR which contains representative collections (from datagovuk) and datasets (from ckan).
+
+This lets other projects run against realistic search data without loading a ckan DB dump or running the indexer.
+The image is built on demand, using the `seed-*` justfile recipes.
+
+### Prerequisites
+
+- A populated ckan postgres DB (see [Indexing CKAN datasets to opensearch](#indexing-ckan-datasets-to-opensearch))
+- The datagovuk django app running on the `datagovuk` docker network, so that `http://django:8000/collections.json` is reachable.
+  To use another source for collections, override the URL, e.g. `just seed_datagovuk_url=<url> seed-build`
+- To publish: the `gh` CLI with the `write:packages` scope (`gh auth refresh -s write:packages`)
+
+### Build and check the image locally
+
+```
+just seed-build
+```
+
+This starts a throwaway opensearch node (the `opensearch-seed` compose service) and indexes the data in to it.
+It then stops the node, copies its data to `build/opensearch-seed/data` and builds `ghcr.io/alphagov/datagovuk-indexer-opensearch:latest`.
+
+To check the image:
+
+```
+docker run --rm -p 9201:9200 ghcr.io/alphagov/datagovuk-indexer-opensearch:latest
+curl 'localhost:9201/datasets/_count?q=source:ckan'
+```
+
+### Publish to GHCR
+
+`seed-publish` pushes the data from the last `seed-build`, tagged with the latest git commit sha and `latest`, for both amd64 and arm64:
+
+```
+just ghcr-login
+just seed-publish
+```
+
+`just seed-clean` removes the seed container and the copied data.
+
+### Using the image
+
+```
+docker run -p 9200:9200 ghcr.io/alphagov/datagovuk-indexer-opensearch:latest
+```
+
+The data is served from the `datasets` alias.
+The image runs as a single node with security disabled; it is intended for local development and testing only.
+
+
 ## Basic Commands
 
 ### Running tests with pytest
