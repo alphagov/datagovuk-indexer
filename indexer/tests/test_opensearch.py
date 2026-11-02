@@ -126,6 +126,23 @@ def test_index_opensearch_with_deleted_package_not_indexed(
         opensearch_client.get(index=f"{opensearch_datasets_name}", id=str(deleted_package["id"]))
 
 
+def test_index_opensearch_with_none_notes_indexes_empty_string(
+    package_factory,
+    configured_opensearch_client,
+    opensearch_datasets_name,
+):
+    package, _ = package_factory(notes=None)
+    opensearch_client = configured_opensearch_client
+
+    opensearch.index_opensearch()
+
+    indexed_package = opensearch_client.get(
+        index=f"{opensearch_datasets_name}",
+        id=str(package["id"]),
+    )["_source"]
+    assert indexed_package["description_raw"] == ""
+
+
 def test_index_opensearch_with_no_indexing(
     configured_opensearch_client,
     opensearch_datasets_name,

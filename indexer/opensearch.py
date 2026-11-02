@@ -160,7 +160,8 @@ async def fetch_ckan_documents(conn: AsyncConnection, index_name, row_limit=None
         await cursor.execute(query)
 
         async for row in cursor:
-            stripped_description = await utils.strip_markdown_and_html(row["notes"])
+            notes = row["notes"] or ""
+            stripped_description = await utils.strip_markdown_and_html(notes)
             yield {
                 "_index": index_name,
                 "_id": str(row["id"]),
@@ -169,7 +170,7 @@ async def fetch_ckan_documents(conn: AsyncConnection, index_name, row_limit=None
                     "title": row["title"],
                     "slug": row["name"],
                     "source": "ckan",
-                    "description_raw": row["notes"],
+                    "description_raw": notes,
                     "description": stripped_description,
                     "created_at": row["metadata_created"],
                     "updated_at": row["metadata_modified"],
