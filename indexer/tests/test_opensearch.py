@@ -126,7 +126,7 @@ def test_index_opensearch_with_deleted_package_not_indexed(
         opensearch_client.get(index=f"{opensearch_datasets_name}", id=str(deleted_package["id"]))
 
 
-def test_index_opensearch_with_none_notes_indexes_empty_string(
+def test_index_opensearch_with_no_notes_not_indexed(
     package_factory,
     configured_opensearch_client,
     opensearch_datasets_name,
@@ -136,11 +136,8 @@ def test_index_opensearch_with_none_notes_indexes_empty_string(
 
     opensearch.index_opensearch()
 
-    indexed_package = opensearch_client.get(
-        index=f"{opensearch_datasets_name}",
-        id=str(package["id"]),
-    )["_source"]
-    assert indexed_package["description_raw"] == ""
+    with pytest.raises(opensearchpy.exceptions.NotFoundError):
+        opensearch_client.get(index=f"{opensearch_datasets_name}", id=str(package["id"]))
 
 
 def test_index_opensearch_with_no_indexing(

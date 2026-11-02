@@ -160,7 +160,9 @@ async def fetch_ckan_documents(conn: AsyncConnection, index_name, row_limit=None
         await cursor.execute(query)
 
         async for row in cursor:
-            notes = row["notes"] or ""
+            notes = row["notes"]
+            if not notes:
+                continue
             stripped_description = await utils.strip_markdown_and_html(notes)
             yield {
                 "_index": index_name,
