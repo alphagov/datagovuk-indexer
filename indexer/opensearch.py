@@ -5,7 +5,15 @@ from typing import TYPE_CHECKING
 from uuid import uuid5
 
 import boto3
-from opensearchpy import AsyncOpenSearch, AWSV4SignerAuth, OpenSearch, RequestsHttpConnection, helpers
+from opensearchpy import (
+    AsyncHttpConnection,
+    AsyncOpenSearch,
+    AWSV4SignerAsyncAuth,
+    AWSV4SignerAuth,
+    OpenSearch,
+    RequestsHttpConnection,
+    helpers,
+)
 from psycopg.rows import dict_row
 
 if TYPE_CHECKING:
@@ -22,16 +30,23 @@ class BadlyConfiguredError(Exception):
     pass
 
 
-def get_client():
+def _get_aws_credentials():
     if not config.OPENSEARCH_URL:
         message = "Missing OPENSEARCH_URL config variable"
         raise BadlyConfiguredError(message)
+    return boto3.Session().get_credentials()
 
-    session = boto3.Session()
-    credentials = session.get_credentials()
-    region = config.AWS_REGION
-    awsauth = AWSV4SignerAuth(credentials, region)
+
+def get_client() -> OpenSearch:
+    credentials = _get_aws_credentials()
+    awsauth = AWSV4SignerAuth(credentials, config.AWS_REGION)
     return OpenSearch(hosts=[config.OPENSEARCH_URL], http_auth=awsauth, connection_class=RequestsHttpConnection)
+
+
+def get_async_client() -> AsyncOpenSearch:
+    credentials = _get_aws_credentials()
+    awsauth = AWSV4SignerAsyncAuth(credentials, config.AWS_REGION)
+    return AsyncOpenSearch(hosts=[config.OPENSEARCH_URL], http_auth=awsauth, connection_class=AsyncHttpConnection)
 
 
 def setup_index():
@@ -171,7 +186,7 @@ async def fetch_ckan_documents(conn: AsyncConnection, index_name, row_limit=None
 
 async def _opensearch_index_ckan(index_name, row_limit=None):
     async with await database.connect(row_factory=dict_row) as pg_conn:
-        opensearch_client = AsyncOpenSearch(hosts=[config.OPENSEARCH_URL])
+        opensearch_client = get_async_client()
 
         logger.info("Starting streaming pipeline from Postgres (psycopg3) to OpenSearch...")
 

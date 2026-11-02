@@ -4,7 +4,7 @@ from uuid import uuid5
 import opensearchpy
 import pytest
 from freezegun import freeze_time
-from opensearchpy import RequestsHttpConnection
+from opensearchpy import AsyncHttpConnection, RequestsHttpConnection
 
 from config import config
 from indexer import opensearch
@@ -258,6 +258,35 @@ def test_mapping_collections_from_json(mock_get_collections, collections_with_to
     assert result[0]["_source"]["created_at"] == "2024-06-06T00:00:00Z"
     assert result[0]["_source"]["updated_at"] == "2026-08-28T00:00:00Z"
     assert result[0]["_source"]["collection"] == "collection-name"
+
+
+def test_get_async_client_no_opensearch_url_raises_exception():
+    old_opensearch_url = config.OPENSEARCH_URL
+    config.OPENSEARCH_URL = None
+    with pytest.raises(opensearch.BadlyConfiguredError):
+        opensearch.get_async_client()
+    config.OPENSEARCH_URL = old_opensearch_url
+
+
+@patch("indexer.opensearch.AsyncOpenSearch")
+@patch("indexer.opensearch.AWSV4SignerAsyncAuth")
+@patch("indexer.opensearch.boto3.Session")
+def test_get_async_client_sets_sigv4_auth(mock_session, mock_auth, mock_async_opensearch, monkeypatch):
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
+
+    mock_credentials = mock_session.return_value.get_credentials.return_value
+
+    async_opensearch_client = opensearch.get_async_client()
+
+    mock_auth.assert_called_once_with(mock_credentials, "eu-west-2")
+
+    mock_async_opensearch.assert_called_once_with(
+        hosts=[config.OPENSEARCH_URL],
+        http_auth=mock_auth.return_value,
+        connection_class=AsyncHttpConnection,
+    )
+    assert async_opensearch_client == mock_async_opensearch.return_value
 
 
 @patch("indexer.opensearch.OpenSearch")
