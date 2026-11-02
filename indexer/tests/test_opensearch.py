@@ -128,6 +128,7 @@ def test_index_opensearch_with_deleted_package_not_indexed(
 
 def test_index_opensearch_with_no_notes_not_indexed(
     package_factory,
+    collection_factory,
     configured_opensearch_client,
     opensearch_datasets_name,
 ):
