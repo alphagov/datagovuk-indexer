@@ -29,7 +29,7 @@ updates:
       default-days: 14
     ignore:
       # Ignore updates to docker images where we are locked to a version imposed by our AWS environment
-      - dependency-name: "postgres"
+      - dependency-name: "postgis/postgis"
       - dependency-name: "opensearchproject/opensearch"
       - dependency-name: "opensearchproject/opensearch-dashboards"
 
