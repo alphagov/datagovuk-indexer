@@ -128,13 +128,7 @@ just seed-publish
 
 ### Using the image
 
-```
-docker run -p 9200:9200 ghcr.io/alphagov/datagovuk-indexer-opensearch:latest
-```
-
-The data is served from the `datasets` alias.
-The image runs as a single node with security disabled; it is intended for local development and testing only.
-
+The image is used in the `datagovuk` repository in `docker-compose.local.yml`.
 
 ## Basic Commands
 
