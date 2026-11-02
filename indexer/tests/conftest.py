@@ -68,7 +68,8 @@ def configured_opensearch_client(opensearch_client):
 
 @pytest.fixture
 def postgres_dsn():
-    return config.POSTGRES_DSN + "-test"
+    base = config.POSTGRES_DSN or "postgresql://localhost/postgres"
+    return base + "-test"
 
 
 @pytest.fixture(autouse=True)
