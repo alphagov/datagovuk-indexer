@@ -15,7 +15,7 @@ DATASETS_INDEX = {
 }
 
 POSTGRES_DSN = env("POSTGRES_DSN", default=None)
-POSTGRES_BATCH_SIZE = 2000
+POSTGRES_BATCH_SIZE = env.int("POSTGRES_BATCH_SIZE", default=2000)
 
 AWS_RDS_ENDPOINT = env("RDS_ENDPOINT", default=None)
 AWS_RDS_USER = env("RDS_USER", default=None)
