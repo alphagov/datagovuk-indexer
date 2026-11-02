@@ -199,6 +199,7 @@ async def _opensearch_index_ckan(index_name, row_limit=None):
             chunk_size=config.POSTGRES_BATCH_SIZE,
             max_chunk_bytes=10 * 1024 * 1024,  # 10 MB chunk limit
             raise_on_error=False,
+            request_timeout=60,
         ):
             if success:
                 success_count += 1
