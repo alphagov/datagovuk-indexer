@@ -155,7 +155,7 @@ async def fetch_ckan_documents(
         FROM package AS p
         INNER JOIN "group" AS org ON p.owner_org=org.id
         WHERE p.state='active'
-    """
+    """  # NOTE: when adjusting CKAN tables to read data from, also adjust `streamlined_tables` variable in justfile
     if created_since:
         query += """
         AND p.metadata_created >= %(created_since)s

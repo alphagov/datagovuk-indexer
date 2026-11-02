@@ -1,4 +1,4 @@
-export COMPOSE_FILE := "docker-compose.local.yml"
+justfileexport COMPOSE_FILE := "docker-compose.local.yml"
 
 
 # Default command to list all available commands.
@@ -30,6 +30,15 @@ init:
 load-db +args:
     @echo "Loading ckan backup file...  This could take a while (~1 hour+)"
     pg_restore -d "postgresql://postgres:postgres_password@127.0.0.1:5432/ckan" -j 8 --no-owner --no-privileges {{args}}
+
+
+streamlined_tables := "-t group -t package -t resource"
+
+load-db-streamlined +args:
+    @echo "Loading ckan backup file with streamlined profile... This may take a few minutes..."
+    pg_restore -d "postgresql://postgres:postgres_password@127.0.0.1:5432/ckan" -j 8 --no-owner --no-privileges --section=pre-data {{args}}
+    pg_restore -d "postgresql://postgres:postgres_password@127.0.0.1:5432/ckan" -j 8 --no-owner --no-privileges --section=data {{streamlined_tables}} {{args}}
+    pg_restore -d "postgresql://postgres:postgres_password@127.0.0.1:5432/ckan" -j 8 --no-owner --no-privileges --section=post-data {{streamlined_tables}} {{args}}
 
 # build: Build python image.
 build *args:
