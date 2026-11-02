@@ -27,6 +27,11 @@ updates:
     # Ensure proposed updates are 2 weeks old to stay behind the absolute bleeding edge
     cooldown:
       default-days: 14
+    ignore:
+      # Ignore updates to docker images where we are locked to a version imposed by our AWS environment
+      - dependency-name: "postgres"
+      - dependency-name: "opensearchproject/opensearch"
+      - dependency-name: "opensearchproject/opensearch-dashboards"
 
   # Enable version updates for Docker Compose files
   - package-ecosystem: 'docker-compose'
