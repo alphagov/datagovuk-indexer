@@ -16,7 +16,7 @@ dependencies = [
   "psycopg[binary]==3.3.6",
   "pytest-asyncio==1.4",
   "requests==2.34.2",
-  "selectolax==1",
+  "selectolax==1.0.1",
 ]
 
 [dependency-groups]
