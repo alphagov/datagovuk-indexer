@@ -64,10 +64,16 @@ You will need a DB dump from S3.  On the ndl-integration account, go to the web 
 Download the latest backup `.gz` file.
 
 ```
-just load-db <path_to_db_dump.gz>
+just load-db-streamlined <path_to_db_dump.gz>
 ```
 
-Note this is likely to take around 1H or so.
+Note this is a streamlined version of the ckan DB with full schema but data only present in selective tables.
+
+Alternatively, to load the whole DB (this will take ~1 hour!);
+
+```
+just load-db <path_to_db_dump.gz>
+```
 
 Now that we have a ckan postgres instance running and populated, we can index the data in to opensearch;
 
