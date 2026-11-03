@@ -577,22 +577,21 @@ def index_opensearch(ckan_row_limit=None, ckan_created_since: date | None = None
         number_of_replicas=config.COLLECTIONS_INDEX["settings"]["number_of_replicas"],
     )
 
-    if config.FEATURE_FLAG_INDEX_CKAN:
-        datasets_index_name = f"{config.DATASETS_INDEX['name']}-{index_suffix}"
-        ckan_success_count = index_ckan(
-            index_name=datasets_index_name,
-            row_limit=ckan_row_limit,
-            created_since=ckan_created_since,
-        )
-        if ckan_success_count == 0:
-            logger.error("Failed to index CKAN datasets/packages.")
-            delete_index(datasets_index_name)
-            return False
-        publish_index(
-            index_name=datasets_index_name,
-            index_alias=config.DATASETS_INDEX["name"],
-            number_of_replicas=config.DATASETS_INDEX["settings"]["number_of_replicas"],
-        )
+    datasets_index_name = f"{config.DATASETS_INDEX['name']}-{index_suffix}"
+    ckan_success_count = index_ckan(
+        index_name=datasets_index_name,
+        row_limit=ckan_row_limit,
+        created_since=ckan_created_since,
+    )
+    if ckan_success_count == 0:
+        logger.error("Failed to index CKAN datasets/packages.")
+        delete_index(datasets_index_name)
+        return False
+    publish_index(
+        index_name=datasets_index_name,
+        index_alias=config.DATASETS_INDEX["name"],
+        number_of_replicas=config.DATASETS_INDEX["settings"]["number_of_replicas"],
+    )
 
     return True
 
