@@ -1,4 +1,4 @@
-justfileexport COMPOSE_FILE := "docker-compose.local.yml"
+export COMPOSE_FILE := "docker-compose.local.yml"
 
 
 # Default command to list all available commands.
