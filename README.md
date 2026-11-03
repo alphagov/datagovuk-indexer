@@ -87,8 +87,8 @@ The data should now be browsable on the opensearch dashboard, in a browser do th
 
 - Go to the opensearch dashboard; http://localhost:5601/app/management/opensearch-dashboards/indexPatterns
 - Click "Create index pattern"
-- Enter "datasets-*" as the index pattern name and create the pattern
-- Go to http://localhost:5601/app/data-explorer/discover - you should see opensearch documents for all datasets!
+- Enter "datasets,collections" as the index pattern name and create the pattern
+- Go to http://localhost:5601/app/data-explorer/discover - you should see opensearch documents for datasets and collections!
 
 ### Loading a new ckan DB dump
 
