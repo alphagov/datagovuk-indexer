@@ -1081,18 +1081,6 @@ def test_get_client_sets_sigv4_auth(mock_session, mock_auth, mock_opensearch, mo
     assert opensearch_client == mock_opensearch.return_value
 
 
-def test_index_opensearch_skips_ckan_when_flag_disabled(
-    collection_factory,
-    configured_opensearch_client,
-    opensearch_datasets_prefix,
-    monkeypatch,
-):
-    monkeypatch.setattr(config, "FEATURE_FLAG_INDEX_CKAN", False)
-    result = opensearch.index_opensearch()
-    assert result is True
-    assert not configured_opensearch_client.indices.get(index=f"{opensearch_datasets_prefix}*", ignore=[404])
-
-
 def test_parse_resource_type_returns_value_from_extras():
     extras = '{"resource-type": "supporting-document"}'
     assert opensearch.parse_resource_type(extras) == "supporting-document"
@@ -1109,20 +1097,6 @@ def test_parse_resource_type_defaults_to_data_link_when_extras_is_none():
 
 def test_parse_resource_type_defaults_to_data_link_when_extras_is_invalid_json():
     assert opensearch.parse_resource_type("invalid-json") == "data-link"
-
-
-def test_index_opensearch_runs_ckan_when_flag_enabled(
-    collection_factory,
-    package_factory,
-    configured_opensearch_client,
-    opensearch_datasets_prefix,
-    monkeypatch,
-):
-    monkeypatch.setattr(config, "FEATURE_FLAG_INDEX_CKAN", True)
-    package_factory()
-    result = opensearch.index_opensearch()
-    assert result is True
-    assert configured_opensearch_client.indices.get(index=f"{opensearch_datasets_prefix}*", ignore=[404])
 
 
 def test_extract_additional_information_includes_type():
