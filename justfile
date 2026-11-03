@@ -136,7 +136,6 @@ prod-down *args:
 seed_image := "ghcr.io/alphagov/datagovuk-indexer-opensearch"
 seed_datagovuk_url := "http://django:8000"
 seed_build_dir := "build/opensearch-seed"
-seed_indexer := `git rev-parse --short HEAD`
 seed_platforms := "linux/amd64,linux/arm64"
 
 _get_seed_tag:
