@@ -136,8 +136,15 @@ prod-down *args:
 seed_image := "ghcr.io/alphagov/datagovuk-indexer-opensearch"
 seed_datagovuk_url := "http://django:8000"
 seed_build_dir := "build/opensearch-seed"
-seed_tag := `git rev-parse --short HEAD`
+seed_indexer := `git rev-parse --short HEAD`
 seed_platforms := "linux/amd64,linux/arm64"
+
+_get_seed_tag:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    latest_package_date=$(psql "postgresql://postgres:postgres_password@127.0.0.1:5432/ckan" -Atc "SELECT MAX(metadata_created)::date FROM package;")
+    indexer_commit_sha=$(git rev-parse --short HEAD)
+    echo "${indexer_commit_sha}-${latest_package_date}"
 
 # seed-index: Index a sample of ckan datasets and all collections in to a throwaway opensearch node
 seed-index:
@@ -163,18 +170,18 @@ seed-index:
     @echo ""
 
 # seed-build: Build the pre-populated opensearch image locally
-seed-build: seed-index
+seed-build seed_tag=`just _get_seed_tag`: seed-index
     @echo "Stopping seed opensearch node and copying its data..."
     docker compose --profile seed stop opensearch-seed
     rm -rf {{seed_build_dir}}
     mkdir -p {{seed_build_dir}}
     docker cp opensearch_seed:/usr/share/opensearch/data {{seed_build_dir}}/data
     docker compose --profile seed rm -f opensearch-seed
-    @echo "Building {{seed_image}}:{{seed_tag}}..."
+    @echo "Building {{seed_image}}:{seed_tag}..."
     docker buildx build --load -f docker/opensearch-seed/Dockerfile -t {{seed_image}}:{{seed_tag}} {{seed_build_dir}}
 
 # seed-publish: Push the pre-populated opensearch image built by seed-build to GHCR
-seed-publish:
+seed-publish seed_tag=`just _get_seed_tag`:
     just ghcr-login
     @test -d {{seed_build_dir}}/data || (echo "No seed data found in {{seed_build_dir}}; run 'just seed-build' first." && exit 1)
     @echo "Publishing {{seed_image}}:{{seed_tag}} and {{seed_image}}:latest for {{seed_platforms}}..."
