@@ -34,11 +34,18 @@ load-db +args:
 
 streamlined_tables := "-t group -t package -t resource"
 
+# load-db-streamlined: Load selective tables from a postgres dump image in to the docker container
 load-db-streamlined +args:
     @echo "Loading ckan backup file with streamlined profile... This may take a few minutes..."
     pg_restore -d "postgresql://postgres:postgres_password@127.0.0.1:5432/ckan" -j 8 --no-owner --no-privileges --section=pre-data {{args}}
     pg_restore -d "postgresql://postgres:postgres_password@127.0.0.1:5432/ckan" -j 8 --no-owner --no-privileges --section=data {{streamlined_tables}} {{args}}
     pg_restore -d "postgresql://postgres:postgres_password@127.0.0.1:5432/ckan" -j 8 --no-owner --no-privileges --section=post-data {{streamlined_tables}} {{args}}
+
+reset-db:
+    just down
+    docker volume rm datagovuk-indexer_postgres_data
+    just up
+    @echo "Removed postgres volume, ready for load-db/load-db-streamlined"
 
 # build: Build python image.
 build *args:

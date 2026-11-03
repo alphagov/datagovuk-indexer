@@ -90,6 +90,12 @@ The data should now be browsable on the opensearch dashboard, in a browser do th
 - Enter "datasets-*" as the index pattern name and create the pattern
 - Go to http://localhost:5601/app/data-explorer/discover - you should see opensearch documents for all datasets!
 
+### Loading a new ckan DB dump
+
+Run `just reset-db` to stop docker containers, drop the DB volume and bring the containers back up.
+
+Then run `just load-db <dump.gz>` or `just load-db-streamlined <dump.gz>` to load the new DB dump.
+
 
 ## Publishing a pre-populated opensearch image
 
