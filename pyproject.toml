@@ -11,7 +11,7 @@ classifiers = [
 dependencies = [
   "boto3==1.43.119",
   "django-environ==0.14",
-  "mistune==3.4.0",
+  "mistune==3.4",
   "opensearch-py[async]==3.2",
   "psycopg[binary]==3.3.6",
   "pytest-asyncio==1.4",
