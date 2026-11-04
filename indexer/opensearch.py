@@ -263,10 +263,10 @@ async def fetch_ckan_documents(
             SELECT res.package_id, jsonb_agg(
                 jsonb_build_object(
                     'id', res.id,
-                    'name',res.name,
-                    'description',res.description,
-                    'format',res.format,
-                    'url',res.url,
+                    'name', res.name,
+                    'description', res.description,
+                    'format', res.format,
+                    'url', res.url,
                     'extras', res.extras,
                     'last_modified', res.last_modified,
                     'created', res.created,

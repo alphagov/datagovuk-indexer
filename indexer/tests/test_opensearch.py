@@ -48,7 +48,6 @@ def test_setup_indices_adds_index_templates_successfully(
         "index": False,
         "doc_values": False,
     }
-
     collections_properties = _get_template_properties(opensearch_client, opensearch_collections_template_name)
     assert collections_properties["uuid"]["type"] == "keyword"
     assert collections_properties["collection"]["type"] == "keyword"
