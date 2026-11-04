@@ -131,7 +131,7 @@ def _setup_datasets_index():
                                     "english": {"type": "text", "analyzer": "english"},
                                 },
                             },
-                            "format": {"type": "keyword"},
+                            "format": {"type": "keyword", "normalizer": "lowercase_normalizer"},
                             "url": {
                                 "type": "keyword",
                                 "index": False,
