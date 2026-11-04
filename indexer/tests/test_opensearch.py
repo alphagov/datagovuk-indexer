@@ -375,6 +375,24 @@ def test_index_ckan_indexes_active_resources(
     assert indexed_package_without_active_resources["resources"] == []
 
 
+def test_index_ckan_resources_sorted_by_created_descending(
+    package_factory,
+    resource_factory,
+    configured_opensearch_client,
+    opensearch_datasets_name,
+):
+    package, _ = package_factory()
+    resource_factory(package["id"], id="resource-oldest", created=datetime(2026, 1, 1, tzinfo=UTC))
+    resource_factory(package["id"], id="resource-middle", created=datetime(2026, 2, 1, tzinfo=UTC))
+    resource_factory(package["id"], id="resource-newest", created=datetime(2026, 3, 1, tzinfo=UTC))
+    index_name = f"{opensearch_datasets_name}-resources"
+
+    opensearch.index_ckan(index_name=index_name)
+
+    resources = configured_opensearch_client.get(index=index_name, id=str(package["id"]))["_source"]["resources"]
+    assert [r["uuid"] for r in resources] == ["resource-newest", "resource-middle", "resource-oldest"]
+
+
 def test_index_opensearch_with_ckan_row_limit_keeps_oldest_packages(
     collection_factory,
     package_factory,
