@@ -53,5 +53,13 @@ CREATE TABLE public."resource" (
     metadata_modified timestamp without time zone,
     created timestamp without time zone,
     resource_type text,
-    extras text
+    extras text,
+    hash text,
+    mimetype text,
+    mimetype_inner text,
+    cache_url text,
+    cache_last_updated timestamp without time zone,
+    webstore_url text,
+    webstore_last_updated timestamp without time zone,
+    url_type text
 );
