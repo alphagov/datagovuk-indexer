@@ -1,12 +1,17 @@
-name: Push indexer to staging ECR
+name: Build and push indexer to staging ECR
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - "indexer/**"
+      - "config/**"
+      - "docker/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/push-to-staging-ecr.yaml"
   workflow_dispatch:
-    inputs:
-      image_sha:
-        description: 'Full git SHA (40 hex characters) of the indexer image from integration ECR'
-        required: true
-        type: string
 
 env:
   APP_NAME: datagovuk-indexer
@@ -16,23 +21,39 @@ env:
   STAGING_ECR: 805684806124.dkr.ecr.eu-west-2.amazonaws.com
 
 jobs:
+  ci:
+    name: Run tests and linting
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Lint and test
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile
+          target: python-run-production
+          platforms: linux/amd64
+          cache-to: type=inline
+
   push_to_staging:
     name: Push indexer to staging ECR
+    needs: ci
     runs-on: ubuntu-latest
     environment: staging
     permissions:
       id-token: write
       contents: read
     steps:
-      - name: Validate image SHA
-        id: validate-sha
-        run: |
-          SHA="${{ inputs.image_sha }}"
-          if [[ ! $SHA =~ ^[a-f0-9]{40}$ ]]; then
-            echo "Error: Invalid SHA format. Must be 40 hex characters."
-            exit 1
-          fi
-          echo "image_sha=${SHA}" >> "$GITHUB_OUTPUT"
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Configure AWS credentials (staging)
         uses: aws-actions/configure-aws-credentials@v6.3.0
@@ -50,8 +71,8 @@ jobs:
       - name: Copy image from integration ECR to staging ECR
         run: |
           crane copy \
-            ${{ env.INTEGRATION_ECR }}/${{ env.APP_NAME }}:${{ steps.validate-sha.outputs.image_sha }} \
-            ${{ steps.staging-ecr-login.outputs.registry }}/${{ env.APP_NAME }}:${{ steps.validate-sha.outputs.image_sha }}
+            ${{ env.INTEGRATION_ECR }}/${{ env.APP_NAME }}:${{ github.sha }} \
+            ${{ steps.staging-ecr-login.outputs.registry }}/${{ env.APP_NAME }}:${{ github.sha }}
 
       - name: Download current task definition
         run: |
@@ -64,7 +85,7 @@ jobs:
 
       - name: Update task definition with new image
         run: |
-          jq --arg image "${{ steps.staging-ecr-login.outputs.registry }}/${{ env.APP_NAME }}:${{ steps.validate-sha.outputs.image_sha }}" \
+          jq --arg image "${{ steps.staging-ecr-login.outputs.registry }}/${{ env.APP_NAME }}:${{ github.sha }}" \
             '.containerDefinitions[0].image = $image' \
             task-definition.json > task-definition-updated.json
 
