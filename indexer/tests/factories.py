@@ -61,6 +61,7 @@ class ResourceFactory(DictFactory):
     position = 0
     size = 123
     last_modified = LazyFunction(lambda: datetime.now(tz=UTC))
+    metadata_modified = LazyFunction(lambda: datetime.now(tz=UTC))
     created = LazyFunction(lambda: datetime.now(tz=UTC))
     extras = "{}"
 

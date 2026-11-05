@@ -269,6 +269,7 @@ async def fetch_ckan_documents(
                     'url', res.url,
                     'extras', res.extras,
                     'last_modified', res.last_modified,
+                    'metadata_modified', res.metadata_modified,
                     'created', res.created,
                     'size', res.size
                 ) ORDER BY res.created DESC, res.id
@@ -328,6 +329,19 @@ async def fetch_ckan_documents(
                             "size": resource["size"],
                             "created": resource["created"],
                             "last_modified": resource["last_modified"],
+                            "metadata_modified": resource["metadata_modified"],
+                            "updated_at": max(
+                                (
+                                    updated_at
+                                    for updated_at in [
+                                        resource["last_modified"],
+                                        resource["metadata_modified"],
+                                        resource["created"],
+                                    ]
+                                    if updated_at
+                                ),
+                                default=None,
+                            ),
                         }
                         for resource in row["resources"]
                     ],

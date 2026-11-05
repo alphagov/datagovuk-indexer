@@ -50,6 +50,7 @@ CREATE TABLE public."resource" (
     position integer,
     size bigint,
     last_modified timestamp without time zone,
+    metadata_modified timestamp without time zone,
     created timestamp without time zone,
     resource_type text,
     extras text
