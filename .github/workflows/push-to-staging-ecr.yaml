@@ -1,0 +1,107 @@
+name: Push indexer to staging ECR
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_sha:
+        description: 'Full git SHA (40 hex characters) of the indexer image from integration ECR'
+        required: true
+        type: string
+
+env:
+  APP_NAME: datagovuk-indexer
+  AWS_REGION: eu-west-2
+  ECS_CLUSTER_STAGING: staging
+  INTEGRATION_ECR: 836822603246.dkr.ecr.eu-west-2.amazonaws.com
+  STAGING_ECR: 805684806124.dkr.ecr.eu-west-2.amazonaws.com
+
+jobs:
+  push_to_staging:
+    name: Push indexer to staging ECR
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Validate image SHA
+        id: validate-sha
+        run: |
+          SHA="${{ inputs.image_sha }}"
+          if [[ ! $SHA =~ ^[a-f0-9]{40}$ ]]; then
+            echo "Error: Invalid SHA format. Must be 40 hex characters."
+            exit 1
+          fi
+          echo "image_sha=${SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Configure AWS credentials (staging)
+        uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ secrets.STAGING_DEPLOYER_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to staging Amazon ECR
+        id: staging-ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Install crane
+        uses: imjasonh/setup-crane@v0.7
+
+      - name: Copy image from integration ECR to staging ECR
+        run: |
+          crane copy \
+            ${{ env.INTEGRATION_ECR }}/${{ env.APP_NAME }}:${{ steps.validate-sha.outputs.image_sha }} \
+            ${{ steps.staging-ecr-login.outputs.registry }}/${{ env.APP_NAME }}:${{ steps.validate-sha.outputs.image_sha }}
+
+      - name: Download current task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition staging-${{ env.APP_NAME }} \
+            --region ${{ env.AWS_REGION }} \
+            --query 'taskDefinition' \
+            --output json > /tmp/td.json
+          jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy, .deregisteredAt)' /tmp/td.json > task-definition.json
+
+      - name: Update task definition with new image
+        run: |
+          jq --arg image "${{ steps.staging-ecr-login.outputs.registry }}/${{ env.APP_NAME }}:${{ steps.validate-sha.outputs.image_sha }}" \
+            '.containerDefinitions[0].image = $image' \
+            task-definition.json > task-definition-updated.json
+
+      - name: Register new task definition
+        id: register-task-def
+        run: |
+          TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://task-definition-updated.json \
+            --region ${{ env.AWS_REGION }} \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+          echo "task_definition_arn=${TASK_DEF_ARN}" >> "$GITHUB_OUTPUT"
+
+      - name: Update staging ECS service
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER_STAGING }} \
+            --service ${{ env.APP_NAME }} \
+            --task-definition ${{ steps.register-task-def.outputs.task_definition_arn }} \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Wait for service to stabilise
+        run: |
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER_STAGING }} \
+            --services ${{ env.APP_NAME }} \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Verify staging deployed revision
+        run: |
+          DEPLOYED="${{ steps.register-task-def.outputs.task_definition_arn }}"
+          CURRENT=$(aws ecs describe-services \
+            --cluster ${{ env.ECS_CLUSTER_STAGING }} \
+            --services ${{ env.APP_NAME }} \
+            --query 'services[0].taskDefinition' \
+            --output text)
+          if [[ "$CURRENT" != "$DEPLOYED" ]]; then
+            echo "Error: Service is on ${CURRENT}, expected ${DEPLOYED} - deployment may have rolled back."
+            exit 1
+          fi
