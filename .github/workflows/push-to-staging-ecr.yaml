@@ -69,39 +69,9 @@ jobs:
             task-definition.json > task-definition-updated.json
 
       - name: Register new task definition
-        id: register-task-def
         run: |
-          TASK_DEF_ARN=$(aws ecs register-task-definition \
+          aws ecs register-task-definition \
             --cli-input-json file://task-definition-updated.json \
             --region ${{ env.AWS_REGION }} \
             --query 'taskDefinition.taskDefinitionArn' \
-            --output text)
-          echo "task_definition_arn=${TASK_DEF_ARN}" >> "$GITHUB_OUTPUT"
-
-      - name: Update staging ECS service
-        run: |
-          aws ecs update-service \
-            --cluster ${{ env.ECS_CLUSTER_STAGING }} \
-            --service ${{ env.APP_NAME }} \
-            --task-definition ${{ steps.register-task-def.outputs.task_definition_arn }} \
-            --region ${{ env.AWS_REGION }}
-
-      - name: Wait for service to stabilise
-        run: |
-          aws ecs wait services-stable \
-            --cluster ${{ env.ECS_CLUSTER_STAGING }} \
-            --services ${{ env.APP_NAME }} \
-            --region ${{ env.AWS_REGION }}
-
-      - name: Verify staging deployed revision
-        run: |
-          DEPLOYED="${{ steps.register-task-def.outputs.task_definition_arn }}"
-          CURRENT=$(aws ecs describe-services \
-            --cluster ${{ env.ECS_CLUSTER_STAGING }} \
-            --services ${{ env.APP_NAME }} \
-            --query 'services[0].taskDefinition' \
-            --output text)
-          if [[ "$CURRENT" != "$DEPLOYED" ]]; then
-            echo "Error: Service is on ${CURRENT}, expected ${DEPLOYED} - deployment may have rolled back."
-            exit 1
-          fi
+            --output text
