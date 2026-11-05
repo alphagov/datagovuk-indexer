@@ -19,8 +19,13 @@ env:
   ECS_CLUSTER_INTEGRATION: integration
 
 jobs:
+  ci:
+    name: CI
+    uses: ./.github/workflows/ci.yml
+
   build-and-push:
     name: Build and push indexer to integration ECR
+    needs: ci
     runs-on: ubuntu-latest
     environment: integration
     permissions:
