@@ -1,4 +1,5 @@
 import asyncio
+import json
 from datetime import UTC, date, datetime
 from logging import getLogger
 from typing import TYPE_CHECKING
@@ -112,6 +113,33 @@ def _setup_datasets_index():
                             },
                         },
                     },
+                    "resources": {
+                        "type": "object",
+                        "properties": {
+                            "uuid": {"type": "keyword"},
+                            "name": {
+                                "type": "text",
+                                "fields": {
+                                    "keyword": {"type": "keyword", "ignore_above": 256},
+                                    "english": {"type": "text", "analyzer": "english"},
+                                },
+                            },
+                            "description": {
+                                "type": "text",
+                                "fields": {
+                                    "keyword": {"type": "keyword", "ignore_above": 256},
+                                    "english": {"type": "text", "analyzer": "english"},
+                                },
+                            },
+                            "format": {"type": "keyword", "normalizer": "lowercase_normalizer"},
+                            "url": {
+                                "type": "keyword",
+                                "index": False,
+                                "doc_values": False,
+                            },
+                            "resource_type": {"type": "keyword"},
+                        },
+                    },
                     "created_at": {"type": "date"},
                     "updated_at": {"type": "date"},
                 },
@@ -211,6 +239,14 @@ def transform_context(context):
     return context
 
 
+def parse_resource_type(extras):
+    try:
+        extras = json.loads(extras or "{}")
+        return extras.get("resource-type", "data-link")
+    except json.JSONDecodeError, TypeError:
+        return "data-link"
+
+
 async def fetch_ckan_documents(
     conn: AsyncConnection,
     index_name,
@@ -227,9 +263,29 @@ async def fetch_ckan_documents(
             p.metadata_modified,
             org.name AS org_slug,
             org.id AS org_id,
-            org.title AS org_name
+            org.title AS org_name,
+            COALESCE(r.resources, '[]'::jsonb) AS resources
         FROM package AS p
         INNER JOIN "group" AS org ON p.owner_org=org.id
+        LEFT JOIN (
+            SELECT res.package_id, jsonb_agg(
+                jsonb_build_object(
+                    'id', res.id,
+                    'name', res.name,
+                    'description', res.description,
+                    'format', res.format,
+                    'url', res.url,
+                    'extras', res.extras,
+                    'last_modified', res.last_modified,
+                    'metadata_modified', res.metadata_modified,
+                    'created', res.created,
+                    'size', res.size
+                ) ORDER BY res.created DESC, res.id
+            ) AS resources
+            FROM resource as res
+            WHERE res.state = 'active'
+            GROUP BY res.package_id
+        ) AS r on r.package_id = p.id
         WHERE p.state='active'
     """  # NOTE: when adjusting CKAN tables to read data from, also adjust `streamlined_tables` variable in justfile
     if created_since:
@@ -269,6 +325,21 @@ async def fetch_ckan_documents(
                             "name": row["org_name"],
                             "slug": row["org_slug"],
                         },
+                    ],
+                    "resources": [
+                        {
+                            "uuid": resource["id"],
+                            "name": resource["name"],
+                            "description": resource["description"],
+                            "format": resource["format"],
+                            "url": resource["url"],
+                            "resource_type": parse_resource_type(resource["extras"]),
+                            "size": resource["size"],
+                            "created": resource["created"],
+                            "last_modified": resource["last_modified"],
+                            "metadata_modified": resource["metadata_modified"],
+                        }
+                        for resource in row["resources"]
                     ],
                 },
             }

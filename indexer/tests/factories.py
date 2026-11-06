@@ -47,6 +47,25 @@ class PackageFactory(DictFactory):
     owner_org = LazyAttribute(lambda o: o.org["id"])
 
 
+class ResourceFactory(DictFactory):
+    class Meta:
+        model = dict
+
+    id = Faker("uuid4")
+    package_id = Faker("uuid4")
+    name = Faker("catch_phrase")
+    description = Faker("catch_phrase")
+    url = Faker("url")
+    format = "CSV"
+    state = "active"
+    position = 0
+    size = 123
+    last_modified = LazyFunction(lambda: datetime.now(tz=UTC))
+    metadata_modified = LazyFunction(lambda: datetime.now(tz=UTC))
+    created = LazyFunction(lambda: datetime.now(tz=UTC))
+    extras = "{}"
+
+
 def insert_postgres_row(cursor, data, table_name):
     columns = data.keys()
     values = list(data.values())
@@ -67,3 +86,10 @@ def create_package(ckan_connection, **kwargs):
     insert_postgres_row(cursor=cursor, data=organisation, table_name="group")
     insert_postgres_row(cursor=cursor, data=package, table_name="package")
     return package, organisation
+
+
+def create_resource(ckan_connection, package_id, **kwargs):
+    resource = ResourceFactory(package_id=package_id, **kwargs)
+    cursor = ckan_connection.cursor()
+    insert_postgres_row(cursor=cursor, data=resource, table_name="resource")
+    return resource
