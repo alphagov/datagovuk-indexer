@@ -356,7 +356,6 @@ def test_index_ckan_indexes_active_resources(
             "created": "2026-03-04T05:06:07",
             "last_modified": "2026-02-03T04:05:06",
             "metadata_modified": "2026-01-02T03:04:05",
-            "updated_at": "2026-03-04T05:06:07",
         },
         {
             "uuid": data_link["id"],
@@ -369,7 +368,6 @@ def test_index_ckan_indexes_active_resources(
             "created": "2026-01-02T03:04:05",
             "last_modified": "2026-04-05T06:07:08",
             "metadata_modified": "2026-02-03T04:05:06",
-            "updated_at": "2026-04-05T06:07:08",
         },
     ]
 
@@ -396,45 +394,6 @@ def test_index_ckan_resources_sorted_by_created_descending(
 
     resources = configured_opensearch_client.get(index=index_name, id=str(package["id"]))["_source"]["resources"]
     assert [r["uuid"] for r in resources] == ["resource-newest", "resource-middle", "resource-oldest"]
-
-
-def test_index_ckan_resources_calculates_updated_at(
-    package_factory,
-    resource_factory,
-    configured_opensearch_client,
-    opensearch_datasets_name,
-):
-    package, _ = package_factory()
-    resource_factory(
-        package["id"],
-        id="resource-created",
-        created=datetime(2026, 1, 3, tzinfo=UTC),
-        last_modified=datetime(2026, 1, 2, tzinfo=UTC),
-        metadata_modified=datetime(2026, 1, 1, tzinfo=UTC),
-    )
-    resource_factory(
-        package["id"],
-        id="resource-last-modified",
-        last_modified=datetime(2026, 1, 3, tzinfo=UTC),
-        created=datetime(2026, 1, 2, tzinfo=UTC),
-        metadata_modified=datetime(2026, 1, 1, tzinfo=UTC),
-    )
-    resource_factory(
-        package["id"],
-        id="resource-metadata-modified",
-        metadata_modified=datetime(2026, 1, 3, tzinfo=UTC),
-        created=datetime(2026, 1, 2, tzinfo=UTC),
-        last_modified=datetime(2026, 1, 1, tzinfo=UTC),
-    )
-    index_name = f"{opensearch_datasets_name}-resources"
-
-    opensearch.index_ckan(index_name=index_name)
-
-    resources = configured_opensearch_client.get(index=index_name, id=str(package["id"]))["_source"]["resources"]
-    updated_at_values = {r["uuid"]: r["updated_at"] for r in resources}
-    assert updated_at_values["resource-created"] == "2026-01-03T00:00:00"
-    assert updated_at_values["resource-last-modified"] == "2026-01-03T00:00:00"
-    assert updated_at_values["resource-metadata-modified"] == "2026-01-03T00:00:00"
 
 
 def test_index_opensearch_with_ckan_row_limit_keeps_oldest_packages(

@@ -239,6 +239,14 @@ def transform_context(context):
     return context
 
 
+def _parse_resource_type(extras):
+    try:
+        extras = json.loads(extras or "{}")
+        return extras.get("resource-type", "")
+    except json.JSONDecodeError, TypeError:
+        return ""
+
+
 async def fetch_ckan_documents(
     conn: AsyncConnection,
     index_name,
@@ -325,23 +333,11 @@ async def fetch_ckan_documents(
                             "description": resource["description"],
                             "format": resource["format"],
                             "url": resource["url"],
-                            "resource_type": json.loads(resource["extras"] or "{}").get("resource-type"),
+                            "resource_type": _parse_resource_type(resource["extras"]),
                             "size": resource["size"],
                             "created": resource["created"],
                             "last_modified": resource["last_modified"],
                             "metadata_modified": resource["metadata_modified"],
-                            "updated_at": max(
-                                (
-                                    updated_at
-                                    for updated_at in [
-                                        resource["last_modified"],
-                                        resource["metadata_modified"],
-                                        resource["created"],
-                                    ]
-                                    if updated_at
-                                ),
-                                default=None,
-                            ),
                         }
                         for resource in row["resources"]
                     ],
