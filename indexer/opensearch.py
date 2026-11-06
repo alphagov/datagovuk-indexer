@@ -239,12 +239,12 @@ def transform_context(context):
     return context
 
 
-def _parse_resource_type(extras):
+def parse_resource_type(extras):
     try:
         extras = json.loads(extras or "{}")
-        return extras.get("resource-type", "")
+        return extras.get("resource-type", "data-link")
     except json.JSONDecodeError, TypeError:
-        return ""
+        return "data-link"
 
 
 async def fetch_ckan_documents(
@@ -333,7 +333,7 @@ async def fetch_ckan_documents(
                             "description": resource["description"],
                             "format": resource["format"],
                             "url": resource["url"],
-                            "resource_type": _parse_resource_type(resource["extras"]),
+                            "resource_type": parse_resource_type(resource["extras"]),
                             "size": resource["size"],
                             "created": resource["created"],
                             "last_modified": resource["last_modified"],

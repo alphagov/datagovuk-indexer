@@ -546,6 +546,24 @@ def test_index_opensearch_skips_ckan_when_flag_disabled(
     assert not configured_opensearch_client.indices.get(index=f"{opensearch_datasets_prefix}*", ignore=[404])
 
 
+def test_parse_resource_type_returns_value_from_extras():
+    extras = '{"resource-type": "supporting-document"}'
+    assert opensearch.parse_resource_type(extras) == "supporting-document"
+
+
+def test_parse_resource_type_defaults_to_data_link_when_key_missing():
+    extras = '{"key": "value"}'
+    assert opensearch.parse_resource_type(extras) == "data-link"
+
+
+def test_parse_resource_type_defaults_to_data_link_when_extras_is_none():
+    assert opensearch.parse_resource_type(None) == "data-link"
+
+
+def test_parse_resource_type_defaults_to_data_link_when_extras_is_invalid_json():
+    assert opensearch.parse_resource_type("invalid-json") == "data-link"
+
+
 def test_index_opensearch_runs_ckan_when_flag_enabled(
     collection_factory,
     package_factory,
