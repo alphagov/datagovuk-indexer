@@ -40,7 +40,14 @@ def test_setup_indices_adds_index_templates_successfully(
     datasets_properties = _get_template_properties(opensearch_client, opensearch_datasets_template_name)
     assert datasets_properties["uuid"]["type"] == "keyword"
     assert "collection" not in datasets_properties
-
+    resource_properties = datasets_properties["resources"]["properties"]
+    assert resource_properties["uuid"]["type"] == "keyword"
+    assert resource_properties["format"]["type"] == "keyword"
+    assert resource_properties["url"] == {
+        "type": "keyword",
+        "index": False,
+        "doc_values": False,
+    }
     collections_properties = _get_template_properties(opensearch_client, opensearch_collections_template_name)
     assert collections_properties["uuid"]["type"] == "keyword"
     assert collections_properties["collection"]["type"] == "keyword"
@@ -288,6 +295,107 @@ def test_index_opensearch_with_ckan_created_since(
         opensearch_client.get(index=opensearch_datasets_name, id=str(old_package["id"]))
 
 
+def test_index_ckan_indexes_active_resources(
+    package_factory,
+    resource_factory,
+    configured_opensearch_client,
+    opensearch_datasets_name,
+):
+    package_one, _ = package_factory()
+    package_two, _ = package_factory()
+    support_document = resource_factory(
+        package_one["id"],
+        id="resource-first",
+        name="First resource",
+        description="First description",
+        url="https://example.com/first.csv",
+        format="CSV",
+        size=100,
+        created=datetime(2026, 3, 4, 5, 6, 7, tzinfo=UTC),
+        last_modified=datetime(2026, 2, 3, 4, 5, 6, tzinfo=UTC),
+        metadata_modified=datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC),
+        extras='{"resource-type": "supporting-document"}',
+    )
+    data_link = resource_factory(
+        package_one["id"],
+        id="resource-second",
+        name="Second resource",
+        created=datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC),
+        last_modified=datetime(2026, 4, 5, 6, 7, 8, tzinfo=UTC),
+        metadata_modified=datetime(2026, 2, 3, 4, 5, 6, tzinfo=UTC),
+        extras='{"resource-type": "data-link"}',
+    )
+    resource_factory(
+        package_one["id"],
+        id="resource-inactive",
+        state="deleted",
+    )
+    resource_factory(
+        package_two["id"],
+        id="resource-only-inactive",
+        state="deleted",
+    )
+    index_name = f"{opensearch_datasets_name}-resources"
+
+    indexed_count = 2
+    assert opensearch.index_ckan(index_name=index_name) == indexed_count
+
+    indexed_package = configured_opensearch_client.get(
+        index=index_name,
+        id=str(package_one["id"]),
+    )["_source"]
+    assert indexed_package["resources"] == [
+        {
+            "uuid": support_document["id"],
+            "name": support_document["name"],
+            "description": support_document["description"],
+            "format": support_document["format"],
+            "url": support_document["url"],
+            "resource_type": "supporting-document",
+            "size": support_document["size"],
+            "created": "2026-03-04T05:06:07",
+            "last_modified": "2026-02-03T04:05:06",
+            "metadata_modified": "2026-01-02T03:04:05",
+        },
+        {
+            "uuid": data_link["id"],
+            "name": data_link["name"],
+            "description": data_link["description"],
+            "format": data_link["format"],
+            "url": data_link["url"],
+            "resource_type": "data-link",
+            "size": data_link["size"],
+            "created": "2026-01-02T03:04:05",
+            "last_modified": "2026-04-05T06:07:08",
+            "metadata_modified": "2026-02-03T04:05:06",
+        },
+    ]
+
+    indexed_package_without_active_resources = configured_opensearch_client.get(
+        index=index_name,
+        id=str(package_two["id"]),
+    )["_source"]
+    assert indexed_package_without_active_resources["resources"] == []
+
+
+def test_index_ckan_resources_sorted_by_created_descending(
+    package_factory,
+    resource_factory,
+    configured_opensearch_client,
+    opensearch_datasets_name,
+):
+    package, _ = package_factory()
+    resource_factory(package["id"], id="resource-oldest", created=datetime(2026, 1, 1, tzinfo=UTC))
+    resource_factory(package["id"], id="resource-middle", created=datetime(2026, 2, 1, tzinfo=UTC))
+    resource_factory(package["id"], id="resource-newest", created=datetime(2026, 3, 1, tzinfo=UTC))
+    index_name = f"{opensearch_datasets_name}-resources"
+
+    opensearch.index_ckan(index_name=index_name)
+
+    resources = configured_opensearch_client.get(index=index_name, id=str(package["id"]))["_source"]["resources"]
+    assert [r["uuid"] for r in resources] == ["resource-newest", "resource-middle", "resource-oldest"]
+
+
 def test_index_opensearch_with_ckan_row_limit_keeps_oldest_packages(
     collection_factory,
     package_factory,
@@ -436,6 +544,24 @@ def test_index_opensearch_skips_ckan_when_flag_disabled(
     result = opensearch.index_opensearch()
     assert result is True
     assert not configured_opensearch_client.indices.get(index=f"{opensearch_datasets_prefix}*", ignore=[404])
+
+
+def test_parse_resource_type_returns_value_from_extras():
+    extras = '{"resource-type": "supporting-document"}'
+    assert opensearch.parse_resource_type(extras) == "supporting-document"
+
+
+def test_parse_resource_type_defaults_to_data_link_when_key_missing():
+    extras = '{"key": "value"}'
+    assert opensearch.parse_resource_type(extras) == "data-link"
+
+
+def test_parse_resource_type_defaults_to_data_link_when_extras_is_none():
+    assert opensearch.parse_resource_type(None) == "data-link"
+
+
+def test_parse_resource_type_defaults_to_data_link_when_extras_is_invalid_json():
+    assert opensearch.parse_resource_type("invalid-json") == "data-link"
 
 
 def test_index_opensearch_runs_ckan_when_flag_enabled(

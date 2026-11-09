@@ -38,3 +38,28 @@ CREATE TABLE public.package (
     metadata_created timestamp without time zone,
     plugin_data jsonb
 );
+
+CREATE TABLE public."resource" (
+    id text NOT NULL,
+    package_id text NOT NULL,
+    name text,
+    description text,
+    url text  NOT NULL,
+    format text,
+    state text,
+    position integer,
+    size bigint,
+    last_modified timestamp without time zone,
+    metadata_modified timestamp without time zone,
+    created timestamp without time zone,
+    resource_type text,
+    extras text,
+    hash text,
+    mimetype text,
+    mimetype_inner text,
+    cache_url text,
+    cache_last_updated timestamp without time zone,
+    webstore_url text,
+    webstore_last_updated timestamp without time zone,
+    url_type text
+);
