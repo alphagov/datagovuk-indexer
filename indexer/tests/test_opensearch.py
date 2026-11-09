@@ -524,9 +524,11 @@ def test_extract_additional_information_filters_non_relevant_keys():
 def test_extract_additional_information_parses_json_values():
     extras = [
         {"key": "access_constraints", "value": '{"key": "value"}'},
+        {"key": "dataset-reference-date", "value": '[{"type": "test", "value": "2026-01-01"}]'},
     ]
     result, harvested = opensearch.extract_additional_information(extras)
     assert {"key": "access_constraints", "value": '{"key": "value"}'} in result
+    assert {"key": "dataset-reference-date", "value": '[{"type": "test", "value": "2026-01-01"}]'} in result
     assert harvested is True
 
 
