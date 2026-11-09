@@ -1,3 +1,4 @@
+import uuid
 from datetime import UTC, datetime
 
 from factory import DictFactory, Faker, LazyAttribute, LazyFunction, SubFactory
@@ -86,6 +87,19 @@ def create_package(ckan_connection, **kwargs):
     insert_postgres_row(cursor=cursor, data=organisation, table_name="group")
     insert_postgres_row(cursor=cursor, data=package, table_name="package")
     return package, organisation
+
+
+def create_package_extra(ckan_connection, package_id, key, value):
+    row = {
+        "id": str(uuid.uuid4()),
+        "package_id": package_id,
+        "key": key,
+        "value": value,
+        "state": "active",
+    }
+    cursor = ckan_connection.cursor()
+    insert_postgres_row(cursor=cursor, data=row, table_name="package_extra")
+    return row
 
 
 def create_resource(ckan_connection, package_id, **kwargs):
