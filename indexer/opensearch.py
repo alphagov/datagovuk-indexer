@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 from config import config
 from indexer import database, utils
-from indexer.constants import ADDITIONAL_INFO_JSON_VALUE_KEYS, ADDITIONAL_INFO_RELEVANT_KEYS
+from indexer.constants import ADDITIONAL_INFO_JSON_VALUE_KEYS, ADDITIONAL_INFO_RELEVANT_KEYS, LICENCES, TOPIC_SLUGS
 from indexer.datagovuk import get_datagovuk_collections
 
 logger = getLogger(__file__)
@@ -138,6 +138,19 @@ def _setup_datasets_index():
                         "enabled": False,
                     },
                     "is_harvested": {"type": "boolean"},
+                    "licence": {
+                        "type": "object",
+                        "properties": {
+                            "slug": {"type": "keyword"},
+                            "title": {"type": "keyword"},
+                            "url": {
+                                "type": "keyword",
+                                "index": False,
+                                "doc_values": False,
+                            },
+                        },
+                    },
+                    "licence_custom": {"type": "keyword"},
                 },
             },
         },
@@ -299,6 +312,7 @@ def _get_ckan_query(row_limit=None, created_since=None):
             p.notes,
             p.metadata_created,
             p.metadata_modified,
+            p.license_id,
             org.name AS org_slug,
             org.id AS org_id,
             org.title AS org_name,
@@ -326,7 +340,7 @@ def _get_ckan_query(row_limit=None, created_since=None):
 
     query += """
         GROUP BY p.id, p.title, p.name, p.notes, p.metadata_created, p.metadata_modified,
-            org.name, org.id, org.title, r.resources
+            org.name, org.id, org.title, r.resources, p.license_id
         ORDER BY p.metadata_created, p.id
     """
 
@@ -337,35 +351,28 @@ def _get_ckan_query(row_limit=None, created_since=None):
     return query
 
 
-TOPIC_SLUGS = [
-    "business-and-economy",
-    "crime-and-justice",
-    "defence",
-    "digital-services-performance",
-    "education",
-    "environment",
-    "government",
-    "government-reference-data",
-    "government-spending",
-    "health",
-    "mapping",
-    "society",
-    "towns-and-cities",
-    "transport",
-]
-
-
 async def _transform_ckan_row_to_opensearch_dataset(row, index_name):
     notes = row["notes"]
     if not notes:
         return None
+
     stripped_description = await utils.strip_markdown_and_html(notes)
     additional_information = extract_additional_information(row["package_extras"])
+
     extras = {item["key"]: item["value"] for item in row["package_extras"]}
     theme_primary = extras.get("theme-primary")
     topic_slug = theme_primary if theme_primary in TOPIC_SLUGS else None
     topic = topic_slug.replace("-", " ").capitalize() if topic_slug else None
+
     is_harvested = bool(additional_information)
+
+    licence = LICENCES.get(row["license_id"])
+    licence_custom = extras.get("licence")
+    if licence_custom:
+        # Slightly bizarre code to strip out json array format characters from ckan-sourced data
+        # TODO: we should review this down the line, but staying consistent with search V1 for now
+        licence_custom = licence_custom.replace('"', "").replace("[", "").replace("]", "")
+
     return {
         "_index": index_name,
         "_id": str(row["id"]),
@@ -403,6 +410,14 @@ async def _transform_ckan_row_to_opensearch_dataset(row, index_name):
             ],
             "additional_information": additional_information,
             "is_harvested": is_harvested,
+            "licence": {
+                "slug": row["license_id"],
+                "title": licence["title"],
+                "url": licence["url"],
+            }
+            if licence
+            else None,
+            "licence_custom": licence_custom,
         },
     }
 

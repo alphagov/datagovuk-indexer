@@ -45,6 +45,15 @@ def test_setup_indices_adds_index_templates_successfully(
         "format": {"type": "keyword", "normalizer": "lowercase_normalizer"},
     }
     assert datasets_properties["additional_information"] == {"type": "object", "enabled": False}
+    licence_properties = datasets_properties["licence"]["properties"]
+    assert licence_properties["slug"]["type"] == "keyword"
+    assert licence_properties["title"]["type"] == "keyword"
+    assert licence_properties["url"] == {
+        "type": "keyword",
+        "index": False,
+        "doc_values": False,
+    }
+    assert datasets_properties["licence_custom"]["type"] == "keyword"
     collections_properties = _get_template_properties(opensearch_client, opensearch_collections_template_name)
     assert collections_properties["uuid"]["type"] == "keyword"
     assert collections_properties["collection"]["type"] == "keyword"
@@ -233,6 +242,106 @@ def test_index_opensearch_ignores_unknown_topic(
     indexed = opensearch_client.get(index=opensearch_datasets_name, id=str(package["id"]))["_source"]
     assert indexed["topic_slug"] is None
     assert indexed["topic"] is None
+
+
+def test_index_opensearch_indexes_licence(
+    collection_factory,
+    package_factory,
+    configured_opensearch_client,
+    opensearch_datasets_name,
+):
+    package, _ = package_factory(license_id="uk-ogl")
+    opensearch_client = configured_opensearch_client
+
+    opensearch.index_opensearch()
+
+    indexed = opensearch_client.get(index=opensearch_datasets_name, id=str(package["id"]))["_source"]
+    assert indexed["licence"] == {
+        "slug": "uk-ogl",
+        "title": "UK Open Government Licence (OGL)",
+        "url": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+    }
+
+
+def test_index_opensearch_indexes_licence_without_url(
+    collection_factory,
+    package_factory,
+    configured_opensearch_client,
+    opensearch_datasets_name,
+):
+    package, _ = package_factory(license_id="other-open")
+    opensearch_client = configured_opensearch_client
+
+    opensearch.index_opensearch()
+
+    indexed = opensearch_client.get(index=opensearch_datasets_name, id=str(package["id"]))["_source"]
+    assert indexed["licence"] == {"slug": "other-open", "title": "Other (Open)", "url": None}
+
+
+@pytest.mark.parametrize("license_id", ["not-a-real-licence", None])
+def test_index_opensearch_licence_empty_when_unknown_or_missing(
+    license_id,
+    collection_factory,
+    package_factory,
+    configured_opensearch_client,
+    opensearch_datasets_name,
+):
+    package, _ = package_factory(license_id=license_id)
+    opensearch_client = configured_opensearch_client
+
+    opensearch.index_opensearch()
+
+    indexed = opensearch_client.get(index=opensearch_datasets_name, id=str(package["id"]))["_source"]
+    assert indexed["licence"] is None
+
+
+def test_index_opensearch_indexes_licence_custom_stripping_json_characters(
+    collection_factory,
+    package_factory,
+    package_extra_factory,
+    configured_opensearch_client,
+    opensearch_datasets_name,
+):
+    package, _ = package_factory()
+    package_extra_factory(package["id"], key="licence", value='["Custom licence terms"]')
+    opensearch_client = configured_opensearch_client
+
+    opensearch.index_opensearch()
+
+    indexed = opensearch_client.get(index=opensearch_datasets_name, id=str(package["id"]))["_source"]
+    assert indexed["licence_custom"] == "Custom licence terms"
+
+
+def test_index_opensearch_indexes_licence_custom_plain_value(
+    collection_factory,
+    package_factory,
+    package_extra_factory,
+    configured_opensearch_client,
+    opensearch_datasets_name,
+):
+    package, _ = package_factory()
+    package_extra_factory(package["id"], key="licence", value="Custom licence terms")
+    opensearch_client = configured_opensearch_client
+
+    opensearch.index_opensearch()
+
+    indexed = opensearch_client.get(index=opensearch_datasets_name, id=str(package["id"]))["_source"]
+    assert indexed["licence_custom"] == "Custom licence terms"
+
+
+def test_index_opensearch_licence_custom_empty_when_no_extra(
+    collection_factory,
+    package_factory,
+    configured_opensearch_client,
+    opensearch_datasets_name,
+):
+    package, _ = package_factory()
+    opensearch_client = configured_opensearch_client
+
+    opensearch.index_opensearch()
+
+    indexed = opensearch_client.get(index=opensearch_datasets_name, id=str(package["id"]))["_source"]
+    assert indexed["licence_custom"] is None
 
 
 def test_index_opensearch_with_deleted_package_not_indexed(
