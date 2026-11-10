@@ -154,6 +154,38 @@ def test_index_opensearch_additional_information_empty_when_no_extras(
     assert indexed["additional_information"] == []
 
 
+def test_index_opensearch_is_harvested_true_when_additional_information_present(
+    collection_factory,
+    package_factory,
+    package_extra_factory,
+    configured_opensearch_client,
+    opensearch_datasets_name,
+):
+    package, _ = package_factory()
+    package_extra_factory(package["id"], key="guid", value="test")
+    opensearch_client = configured_opensearch_client
+
+    opensearch.index_opensearch()
+
+    indexed = opensearch_client.get(index=opensearch_datasets_name, id=str(package["id"]))["_source"]
+    assert indexed["is_harvested"] is True
+
+
+def test_index_opensearch_is_harvested_false_when_no_additional_information(
+    collection_factory,
+    package_factory,
+    configured_opensearch_client,
+    opensearch_datasets_name,
+):
+    package, _ = package_factory()
+    opensearch_client = configured_opensearch_client
+
+    opensearch.index_opensearch()
+
+    indexed = opensearch_client.get(index=opensearch_datasets_name, id=str(package["id"]))["_source"]
+    assert indexed["is_harvested"] is False
+
+
 def test_index_opensearch_with_deleted_package_not_indexed(
     collection_factory,
     package_factory,
@@ -504,10 +536,9 @@ def test_extract_additional_information_includes_all_relevant_keys():
         {"key": "metadata-language", "value": "en"},
         {"key": "harvest_object_id", "value": "harvest-123"},
     ]
-    result, harvested = opensearch.extract_additional_information(extras)
+    result = opensearch.extract_additional_information(extras)
     for extra in extras:
         assert extra in result
-    assert harvested is True
 
 
 def test_extract_additional_information_filters_non_relevant_keys():
@@ -515,10 +546,9 @@ def test_extract_additional_information_filters_non_relevant_keys():
         {"key": "filtered-out-key", "value": "excluded"},
         {"key": "licence", "value": "included"},
     ]
-    result, harvested = opensearch.extract_additional_information(extras)
+    result = opensearch.extract_additional_information(extras)
     assert not any(item["key"] == "filtered-out-key" for item in result)
     assert {"key": "licence", "value": "included"} in result
-    assert harvested is True
 
 
 def test_extract_additional_information_parses_json_values():
@@ -526,37 +556,33 @@ def test_extract_additional_information_parses_json_values():
         {"key": "access_constraints", "value": '{"key": "value"}'},
         {"key": "dataset-reference-date", "value": '[{"type": "test", "value": "2026-01-01"}]'},
     ]
-    result, harvested = opensearch.extract_additional_information(extras)
+    result = opensearch.extract_additional_information(extras)
     assert {"key": "access_constraints", "value": '{"key": "value"}'} in result
     assert {"key": "dataset-reference-date", "value": '[{"type": "test", "value": "2026-01-01"}]'} in result
-    assert harvested is True
 
 
 def test_extract_additional_information_uses_raw_value_for_invalid_json():
     extras = [
         {"key": "access_constraints", "value": "invalid-json"},
     ]
-    result, harvested = opensearch.extract_additional_information(extras)
+    result = opensearch.extract_additional_information(extras)
     assert {"key": "access_constraints", "value": "invalid-json"} in result
-    assert harvested is True
 
 
 def test_extract_additional_information_uses_none_for_invalid_metadata_date():
     extras = [
         {"key": "metadata-date", "value": "invalid-date"},
     ]
-    result, harvested = opensearch.extract_additional_information(extras)
+    result = opensearch.extract_additional_information(extras)
     assert {"key": "metadata-date", "value": None} in result
-    assert harvested is True
 
 
 def test_extract_additional_information_returns_harvested_false_when_no_additional_information():
     extras = [
         {"key": "filtered-out-key", "value": "excluded"},
     ]
-    result, harvested = opensearch.extract_additional_information(extras)
+    result = opensearch.extract_additional_information(extras)
     assert result == []
-    assert harvested is False
 
 
 def test_transform_context_transforms_nested_list():

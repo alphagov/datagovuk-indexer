@@ -269,7 +269,7 @@ def extract_additional_information(package_extras):
             except ValueError:
                 value = None
         additional_information.append({"key": key, "value": value})
-    return additional_information, bool(additional_information)
+    return additional_information
 
 
 def parse_resource_type(extras):
@@ -361,7 +361,8 @@ async def fetch_ckan_documents(
             if not notes:
                 continue
             stripped_description = await utils.strip_markdown_and_html(notes)
-            additional_information, harvested = extract_additional_information(row["package_extras"])
+            additional_information = extract_additional_information(row["package_extras"])
+            is_harvested = bool(additional_information)
             yield {
                 "_index": index_name,
                 "_id": str(row["id"]),
@@ -396,7 +397,7 @@ async def fetch_ckan_documents(
                         for resource in row["resources"]
                     ],
                     "additional_information": additional_information,
-                    "harvested": harvested,
+                    "is_harvested": is_harvested,
                 },
             }
 
