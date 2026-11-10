@@ -217,6 +217,24 @@ def test_index_opensearch_indexes_empty_topic(
     assert indexed["topic"] is None
 
 
+def test_index_opensearch_ignores_unknown_topic(
+    collection_factory,
+    package_factory,
+    package_extra_factory,
+    configured_opensearch_client,
+    opensearch_datasets_name,
+):
+    package, _ = package_factory()
+    package_extra_factory(package["id"], key="theme-primary", value="not-a-real-topic")
+    opensearch_client = configured_opensearch_client
+
+    opensearch.index_opensearch()
+
+    indexed = opensearch_client.get(index=opensearch_datasets_name, id=str(package["id"]))["_source"]
+    assert indexed["topic_slug"] is None
+    assert indexed["topic"] is None
+
+
 def test_index_opensearch_with_deleted_package_not_indexed(
     collection_factory,
     package_factory,
