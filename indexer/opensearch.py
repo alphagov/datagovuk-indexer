@@ -268,13 +268,7 @@ def parse_resource_type(extras):
         return "data-link"
 
 
-async def fetch_ckan_documents(
-    conn: AsyncConnection,
-    index_name,
-    row_limit=None,
-    created_since=None,
-):
-
+def _get_ckan_query(row_limit=None, created_since=None):
     active_resources_subquery = """
         (
             SELECT res.package_id, jsonb_agg(
@@ -340,59 +334,78 @@ async def fetch_ckan_documents(
         query += f"""
         LIMIT {row_limit}
         """
+    return query
+
+
+async def _transform_ckan_row_to_opensearch_dataset(row, index_name):
+    notes = row["notes"]
+    if not notes:
+        return None
+    stripped_description = await utils.strip_markdown_and_html(notes)
+    additional_information = extract_additional_information(row["package_extras"])
+    extras = {item["key"]: item["value"] for item in row["package_extras"]}
+    topic_slug = extras.get("theme-primary")
+    topic = topic_slug.replace("-", " ").capitalize() if topic_slug else None
+    is_harvested = bool(additional_information)
+    return {
+        "_index": index_name,
+        "_id": str(row["id"]),
+        "_source": {
+            "uuid": row["id"],
+            "title": row["title"],
+            "slug": row["name"],
+            "topic_slug": topic_slug,
+            "topic": topic,
+            "description_raw": notes,
+            "description": stripped_description,
+            "created_at": row["metadata_created"],
+            "updated_at": row["metadata_modified"],
+            "organisations": [
+                {
+                    "uuid": row["org_id"],
+                    "name": row["org_name"],
+                    "slug": row["org_slug"],
+                },
+            ],
+            "resources": [
+                {
+                    "uuid": resource["id"],
+                    "name": resource["name"],
+                    "description": resource["description"],
+                    "format": resource["format"],
+                    "url": resource["url"],
+                    "resource_type": parse_resource_type(resource["extras"]),
+                    "size": resource["size"],
+                    "created": resource["created"],
+                    "last_modified": resource["last_modified"],
+                    "metadata_modified": resource["metadata_modified"],
+                }
+                for resource in row["resources"]
+            ],
+            "additional_information": additional_information,
+            "is_harvested": is_harvested,
+        },
+    }
+
+
+async def fetch_ckan_documents(
+    conn: AsyncConnection,
+    index_name,
+    row_limit=None,
+    created_since=None,
+):
+
+    query = _get_ckan_query(row_limit, created_since)
+
     async with conn.cursor(name="package_stream_cursor") as cursor:
         cursor.itersize = config.POSTGRES_BATCH_SIZE
         await cursor.execute(query, {"created_since": created_since})
 
         async for row in cursor:
-            notes = row["notes"]
-            if not notes:
+            dataset = await _transform_ckan_row_to_opensearch_dataset(row, index_name)
+            if not dataset:
                 continue
-            stripped_description = await utils.strip_markdown_and_html(notes)
-            additional_information = extract_additional_information(row["package_extras"])
-            extras = {item["key"]: item["value"] for item in row["package_extras"]}
-            topic_slug = extras.get("theme-primary")
-            topic = topic_slug.replace("-", " ").capitalize() if topic_slug else None
-            is_harvested = bool(additional_information)
-            yield {
-                "_index": index_name,
-                "_id": str(row["id"]),
-                "_source": {
-                    "uuid": row["id"],
-                    "title": row["title"],
-                    "slug": row["name"],
-                    "topic_slug": topic_slug,
-                    "topic": topic,
-                    "description_raw": notes,
-                    "description": stripped_description,
-                    "created_at": row["metadata_created"],
-                    "updated_at": row["metadata_modified"],
-                    "organisations": [
-                        {
-                            "uuid": row["org_id"],
-                            "name": row["org_name"],
-                            "slug": row["org_slug"],
-                        },
-                    ],
-                    "resources": [
-                        {
-                            "uuid": resource["id"],
-                            "name": resource["name"],
-                            "description": resource["description"],
-                            "format": resource["format"],
-                            "url": resource["url"],
-                            "resource_type": parse_resource_type(resource["extras"]),
-                            "size": resource["size"],
-                            "created": resource["created"],
-                            "last_modified": resource["last_modified"],
-                            "metadata_modified": resource["metadata_modified"],
-                        }
-                        for resource in row["resources"]
-                    ],
-                    "additional_information": additional_information,
-                    "is_harvested": is_harvested,
-                },
-            }
+            yield dataset
 
 
 async def _opensearch_index_ckan(index_name, row_limit=None, created_since=None):
