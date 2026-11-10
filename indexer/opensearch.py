@@ -337,6 +337,24 @@ def _get_ckan_query(row_limit=None, created_since=None):
     return query
 
 
+TOPIC_SLUGS = [
+    "business-and-economy",
+    "crime-and-justice",
+    "defence",
+    "digital-services-performance",
+    "education",
+    "environment",
+    "government",
+    "government-reference-data",
+    "government-spending",
+    "health",
+    "mapping",
+    "society",
+    "towns-and-cities",
+    "transport",
+]
+
+
 async def _transform_ckan_row_to_opensearch_dataset(row, index_name):
     notes = row["notes"]
     if not notes:
@@ -344,7 +362,8 @@ async def _transform_ckan_row_to_opensearch_dataset(row, index_name):
     stripped_description = await utils.strip_markdown_and_html(notes)
     additional_information = extract_additional_information(row["package_extras"])
     extras = {item["key"]: item["value"] for item in row["package_extras"]}
-    topic_slug = extras.get("theme-primary")
+    theme_primary = extras.get("theme-primary")
+    topic_slug = theme_primary if theme_primary in TOPIC_SLUGS else None
     topic = topic_slug.replace("-", " ").capitalize() if topic_slug else None
     is_harvested = bool(additional_information)
     return {
