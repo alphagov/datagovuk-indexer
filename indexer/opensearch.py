@@ -418,7 +418,9 @@ async def _opensearch_index_ckan(index_name, row_limit=None, created_since=None)
             max_chunk_bytes=10 * 1024 * 1024,  # 10 MB chunk limit
             raise_on_error=False,
             request_timeout=60,
-            max_retries=3,
+            max_retries=config.OPENSEARCH_MAX_RETRIES,
+            initial_backoff=config.OPENSEARCH_INITIAL_BACKOFF,
+            max_backoff=config.OPENSEARCH_MAX_BACKOFF,
         ):
             if success:
                 success_count += 1
