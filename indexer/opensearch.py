@@ -150,7 +150,7 @@ def _setup_datasets_index():
                             "value": {"type": "text"},
                         },
                     },
-                    "harvested": {"type": "boolean"},
+                    "is_harvested": {"type": "boolean"},
                 },
             },
         },
