@@ -334,12 +334,19 @@ async def fetch_ckan_documents(
             AND extra.key IS NOT NULL
             AND extra.state = 'active'
         WHERE p.state='active'
-        {("AND p.metadata_created >= %(created_since)s" if created_since else "")}
+    """  # noqa: S608
+    # NOTE: when adjusting CKAN tables to read data from, also adjust `streamlined_tables` variable in justfile
+
+    if created_since:
+        query += """
+        AND p.metadata_created >= %(created_since)s
+        """
+
+    query += """
         GROUP BY p.id, p.title, p.name, p.notes, p.metadata_created, p.metadata_modified,
             org.name, org.id, org.title, r.resources
         ORDER BY p.metadata_created, p.id
-    """  # noqa: S608
-    # NOTE: when adjusting CKAN tables to read data from, also adjust `streamlined_tables` variable in justfile
+    """
 
     if row_limit:
         query += f"""
