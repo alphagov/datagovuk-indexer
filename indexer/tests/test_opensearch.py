@@ -120,6 +120,72 @@ def test_index_opensearch_correctly(
         opensearch_client.get(index=opensearch_collections_name, id=str(package_1["id"]))
 
 
+def test_index_opensearch_indexes_additional_information(
+    collection_factory,
+    package_factory,
+    package_extra_factory,
+    configured_opensearch_client,
+    opensearch_datasets_name,
+):
+    package, _ = package_factory()
+    package_extra_factory(package["id"], key="guid", value="abc-123")
+    package_extra_factory(package["id"], key="metadata-date", value="2026-01-01T00:00:00")
+    opensearch_client = configured_opensearch_client
+
+    opensearch.index_opensearch()
+
+    indexed = opensearch_client.get(index=opensearch_datasets_name, id=str(package["id"]))["_source"]
+    assert {"key": "guid", "value": "abc-123"} in indexed["additional_information"]
+    assert {"key": "metadata-date", "value": "2026-01-01T00:00:00"} in indexed["additional_information"]
+
+
+def test_index_opensearch_additional_information_empty_when_no_extras(
+    collection_factory,
+    package_factory,
+    configured_opensearch_client,
+    opensearch_datasets_name,
+):
+    package, _ = package_factory()
+    opensearch_client = configured_opensearch_client
+
+    opensearch.index_opensearch()
+
+    indexed = opensearch_client.get(index=opensearch_datasets_name, id=str(package["id"]))["_source"]
+    assert indexed["additional_information"] == []
+
+
+def test_index_opensearch_is_harvested_true_when_additional_information_present(
+    collection_factory,
+    package_factory,
+    package_extra_factory,
+    configured_opensearch_client,
+    opensearch_datasets_name,
+):
+    package, _ = package_factory()
+    package_extra_factory(package["id"], key="guid", value="test")
+    opensearch_client = configured_opensearch_client
+
+    opensearch.index_opensearch()
+
+    indexed = opensearch_client.get(index=opensearch_datasets_name, id=str(package["id"]))["_source"]
+    assert indexed["is_harvested"] is True
+
+
+def test_index_opensearch_is_harvested_false_when_no_additional_information(
+    collection_factory,
+    package_factory,
+    configured_opensearch_client,
+    opensearch_datasets_name,
+):
+    package, _ = package_factory()
+    opensearch_client = configured_opensearch_client
+
+    opensearch.index_opensearch()
+
+    indexed = opensearch_client.get(index=opensearch_datasets_name, id=str(package["id"]))["_source"]
+    assert indexed["is_harvested"] is False
+
+
 def test_index_opensearch_with_deleted_package_not_indexed(
     collection_factory,
     package_factory,
@@ -453,6 +519,70 @@ def test_clear_opensearch_clears_successfully(
         assert index_name not in all_indices
     for template_name in expected_template_names:
         assert template_name not in all_templates
+
+
+def test_extract_additional_information_includes_all_relevant_keys():
+    extras = [
+        {"key": "licence", "value": "OGL"},
+        {"key": "guid", "value": "abc-123"},
+        {"key": "bbox-east-long", "value": "1.0"},
+        {"key": "bbox-west-long", "value": "0.0"},
+        {"key": "bbox-north-lat", "value": "1.0"},
+        {"key": "bbox-south-lat", "value": "0.0"},
+        {"key": "spatial-reference-system", "value": "EPSG:4326"},
+        {"key": "frequency-of-update", "value": "daily"},
+        {"key": "responsible-party", "value": "someone"},
+        {"key": "resource-type", "value": "data-link"},
+        {"key": "metadata-language", "value": "en"},
+        {"key": "harvest_object_id", "value": "harvest-123"},
+    ]
+    result = opensearch.extract_additional_information(extras)
+    for extra in extras:
+        assert extra in result
+
+
+def test_extract_additional_information_filters_non_relevant_keys():
+    extras = [
+        {"key": "filtered-out-key", "value": "excluded"},
+        {"key": "licence", "value": "included"},
+    ]
+    result = opensearch.extract_additional_information(extras)
+    assert not any(item["key"] == "filtered-out-key" for item in result)
+    assert {"key": "licence", "value": "included"} in result
+
+
+def test_extract_additional_information_parses_json_values():
+    extras = [
+        {"key": "access_constraints", "value": '{"key": "value"}'},
+        {"key": "dataset-reference-date", "value": '[{"type": "test", "value": "2026-01-01"}]'},
+    ]
+    result = opensearch.extract_additional_information(extras)
+    assert {"key": "access_constraints", "value": '{"key": "value"}'} in result
+    assert {"key": "dataset-reference-date", "value": '[{"type": "test", "value": "2026-01-01"}]'} in result
+
+
+def test_extract_additional_information_uses_raw_value_for_invalid_json():
+    extras = [
+        {"key": "access_constraints", "value": "invalid-json"},
+    ]
+    result = opensearch.extract_additional_information(extras)
+    assert {"key": "access_constraints", "value": "invalid-json"} in result
+
+
+def test_extract_additional_information_uses_none_for_invalid_metadata_date():
+    extras = [
+        {"key": "metadata-date", "value": "invalid-date"},
+    ]
+    result = opensearch.extract_additional_information(extras)
+    assert {"key": "metadata-date", "value": None} in result
+
+
+def test_extract_additional_information_returns_harvested_false_when_no_additional_information():
+    extras = [
+        {"key": "filtered-out-key", "value": "excluded"},
+    ]
+    result = opensearch.extract_additional_information(extras)
+    assert result == []
 
 
 def test_transform_context_transforms_nested_list():

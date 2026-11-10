@@ -7,7 +7,7 @@ from opensearchpy import OpenSearch
 from config import config
 from indexer import opensearch
 
-from .factories import create_package, create_resource
+from .factories import create_package, create_package_extra, create_resource
 
 
 @pytest.fixture(autouse=True)
@@ -116,6 +116,14 @@ def ckan_connection(postgres_dsn):
 def package_factory(ckan_connection):
     def _create(**kwargs):
         return create_package(ckan_connection, **kwargs)
+
+    return _create
+
+
+@pytest.fixture
+def package_extra_factory(ckan_connection):
+    def _create(package_id, key, value):
+        return create_package_extra(ckan_connection, package_id=package_id, key=key, value=value)
 
     return _create
 

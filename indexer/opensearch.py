@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 
 from config import config
 from indexer import database, utils
+from indexer.constants import ADDITIONAL_INFO_JSON_VALUE_KEYS, ADDITIONAL_INFO_RELEVANT_KEYS
 from indexer.datagovuk import get_datagovuk_collections
 
 logger = getLogger(__file__)
@@ -142,6 +143,14 @@ def _setup_datasets_index():
                     },
                     "created_at": {"type": "date"},
                     "updated_at": {"type": "date"},
+                    "additional_information": {
+                        "type": "nested",
+                        "properties": {
+                            "key": {"type": "keyword"},
+                            "value": {"type": "text"},
+                        },
+                    },
+                    "harvested": {"type": "boolean"},
                 },
             },
         },
@@ -239,6 +248,30 @@ def transform_context(context):
     return context
 
 
+def extract_additional_information(package_extras):
+    additional_information = []
+    for item in package_extras:
+        key = item.get("key")
+        value = item.get("value")
+
+        if key not in ADDITIONAL_INFO_RELEVANT_KEYS:
+            continue
+
+        if key in ADDITIONAL_INFO_JSON_VALUE_KEYS:
+            try:
+                valid_json = json.loads(value)
+                value = json.dumps(valid_json)
+            except json.JSONDecodeError, TypeError:
+                logger.warning("Failed to parse JSON for key '%s' with value '%s'", key, value)
+        elif key == "metadata-date":
+            try:
+                value = datetime.fromisoformat(value).isoformat() if value else None
+            except ValueError:
+                value = None
+        additional_information.append({"key": key, "value": value})
+    return additional_information
+
+
 def parse_resource_type(extras):
     try:
         extras = json.loads(extras or "{}")
@@ -253,21 +286,9 @@ async def fetch_ckan_documents(
     row_limit=None,
     created_since=None,
 ):
-    query = """
-        SELECT
-            p.id,
-            p.title,
-            p.name,
-            p.notes,
-            p.metadata_created,
-            p.metadata_modified,
-            org.name AS org_slug,
-            org.id AS org_id,
-            org.title AS org_name,
-            COALESCE(r.resources, '[]'::jsonb) AS resources
-        FROM package AS p
-        INNER JOIN "group" AS org ON p.owner_org=org.id
-        LEFT JOIN (
+
+    active_resources_subquery = """
+        (
             SELECT res.package_id, jsonb_agg(
                 jsonb_build_object(
                     'id', res.id,
@@ -285,16 +306,48 @@ async def fetch_ckan_documents(
             FROM resource as res
             WHERE res.state = 'active'
             GROUP BY res.package_id
-        ) AS r on r.package_id = p.id
+        )
+    """
+
+    query = f"""
+        SELECT
+            p.id,
+            p.title,
+            p.name,
+            p.notes,
+            p.metadata_created,
+            p.metadata_modified,
+            org.name AS org_slug,
+            org.id AS org_id,
+            org.title AS org_name,
+            COALESCE(r.resources, '[]'::jsonb) AS resources,
+            COALESCE(
+                jsonb_agg(
+                    jsonb_build_object('key', extra.key, 'value', extra.value)
+                ) FILTER (WHERE extra.key IS NOT NULL),
+                '[]'::jsonb
+            ) AS package_extras
+        FROM package AS p
+        INNER JOIN "group" AS org ON p.owner_org=org.id
+        LEFT JOIN ({active_resources_subquery}) AS r ON r.package_id = p.id
+        LEFT JOIN package_extra AS extra ON extra.package_id = p.id
+            AND extra.key IS NOT NULL
+            AND extra.state = 'active'
         WHERE p.state='active'
-    """  # NOTE: when adjusting CKAN tables to read data from, also adjust `streamlined_tables` variable in justfile
+    """  # noqa: S608
+    # NOTE: when adjusting CKAN tables to read data from, also adjust `streamlined_tables` variable in justfile
+
     if created_since:
         query += """
         AND p.metadata_created >= %(created_since)s
         """
+
     query += """
+        GROUP BY p.id, p.title, p.name, p.notes, p.metadata_created, p.metadata_modified,
+            org.name, org.id, org.title, r.resources
         ORDER BY p.metadata_created, p.id
     """
+
     if row_limit:
         query += f"""
         LIMIT {row_limit}
@@ -308,6 +361,8 @@ async def fetch_ckan_documents(
             if not notes:
                 continue
             stripped_description = await utils.strip_markdown_and_html(notes)
+            additional_information = extract_additional_information(row["package_extras"])
+            is_harvested = bool(additional_information)
             yield {
                 "_index": index_name,
                 "_id": str(row["id"]),
@@ -341,6 +396,8 @@ async def fetch_ckan_documents(
                         }
                         for resource in row["resources"]
                     ],
+                    "additional_information": additional_information,
+                    "is_harvested": is_harvested,
                 },
             }
 
