@@ -32,7 +32,7 @@ load-db +args:
     pg_restore -d "postgresql://postgres:postgres_password@127.0.0.1:5432/ckan" -j 8 --no-owner --no-privileges {{args}}
 
 
-streamlined_tables := "-t group -t package -t package_extra -t resource"
+streamlined_tables := "-t group -t group_extra -t package -t package_extra -t resource"
 
 # load-db-streamlined: Load selective tables from a postgres dump image in to the docker container
 load-db-streamlined +args:

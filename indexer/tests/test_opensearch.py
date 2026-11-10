@@ -183,6 +183,40 @@ def test_index_opensearch_is_harvested_false_when_no_additional_information(
     assert indexed["is_harvested"] is False
 
 
+def test_index_opensearch_indexes_topic(
+    collection_factory,
+    package_factory,
+    package_extra_factory,
+    configured_opensearch_client,
+    opensearch_datasets_name,
+):
+    package, _ = package_factory()
+    package_extra_factory(package["id"], key="theme-primary", value="business-and-economy")
+    opensearch_client = configured_opensearch_client
+
+    opensearch.index_opensearch()
+
+    indexed = opensearch_client.get(index=opensearch_datasets_name, id=str(package["id"]))["_source"]
+    assert indexed["topic_slug"] == "business-and-economy"
+    assert indexed["topic"] == "Business and economy"
+
+
+def test_index_opensearch_indexes_empty_topic(
+    collection_factory,
+    package_factory,
+    configured_opensearch_client,
+    opensearch_datasets_name,
+):
+    package, _ = package_factory()
+    opensearch_client = configured_opensearch_client
+
+    opensearch.index_opensearch()
+
+    indexed = opensearch_client.get(index=opensearch_datasets_name, id=str(package["id"]))["_source"]
+    assert indexed["topic_slug"] is None
+    assert indexed["topic"] is None
+
+
 def test_index_opensearch_with_deleted_package_not_indexed(
     collection_factory,
     package_factory,

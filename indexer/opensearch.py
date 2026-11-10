@@ -85,6 +85,13 @@ def _setup_datasets_index():
                             "english": {"type": "text", "analyzer": "english"},
                         },
                     },
+                    "topic_slug": {"type": "keyword"},
+                    "topic": {
+                        "type": "text",
+                        "fields": {
+                            "keyword": {"type": "keyword", "ignore_above": 256},
+                        },
+                    },
                     "description": {
                         "type": "text",
                         "fields": {
@@ -343,6 +350,9 @@ async def fetch_ckan_documents(
                 continue
             stripped_description = await utils.strip_markdown_and_html(notes)
             additional_information = extract_additional_information(row["package_extras"])
+            extras = {item["key"]: item["value"] for item in row["package_extras"]}
+            topic_slug = extras.get("theme-primary")
+            topic = topic_slug.replace("-", " ").capitalize() if topic_slug else None
             is_harvested = bool(additional_information)
             yield {
                 "_index": index_name,
@@ -351,6 +361,8 @@ async def fetch_ckan_documents(
                     "uuid": row["id"],
                     "title": row["title"],
                     "slug": row["name"],
+                    "topic_slug": topic_slug,
+                    "topic": topic,
                     "description_raw": notes,
                     "description": stripped_description,
                     "created_at": row["metadata_created"],
