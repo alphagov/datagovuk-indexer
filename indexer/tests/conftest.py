@@ -7,7 +7,7 @@ from opensearchpy import OpenSearch
 from config import config
 from indexer import opensearch
 
-from .factories import create_package, create_package_extra, create_resource
+from .factories import create_group_extra, create_package, create_package_extra, create_resource
 
 
 @pytest.fixture(autouse=True)
@@ -102,7 +102,7 @@ def override_postgres_settings(postgres_dsn, ckan_connection, monkeypatch):
     monkeypatch.setattr(config, "POSTGRES_DSN", postgres_dsn)
     yield
     cursor = ckan_connection.cursor()
-    cursor.execute('TRUNCATE TABLE "resource", "package", "group";')
+    cursor.execute('TRUNCATE TABLE "resource", "package", "group", "group_extra";')
 
 
 @pytest.fixture
@@ -124,6 +124,14 @@ def package_factory(ckan_connection):
 def package_extra_factory(ckan_connection):
     def _create(package_id, key, value):
         return create_package_extra(ckan_connection, package_id=package_id, key=key, value=value)
+
+    return _create
+
+
+@pytest.fixture
+def group_extra_factory(ckan_connection):
+    def _create(group_id, key, value):
+        return create_group_extra(ckan_connection, group_id=group_id, key=key, value=value)
 
     return _create
 

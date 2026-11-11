@@ -54,6 +54,9 @@ def test_setup_indices_adds_index_templates_successfully(
         "doc_values": False,
     }
     assert datasets_properties["licence_custom"]["type"] == "keyword"
+    assert datasets_properties["contact_email"]["type"] == "keyword"
+    assert datasets_properties["foi_email"]["type"] == "keyword"
+    assert datasets_properties["foi_web"]["type"] == "keyword"
     collections_properties = _get_template_properties(opensearch_client, opensearch_collections_template_name)
     assert collections_properties["uuid"]["type"] == "keyword"
     assert collections_properties["collection"]["type"] == "keyword"
@@ -342,6 +345,131 @@ def test_index_opensearch_licence_custom_empty_when_no_extra(
 
     indexed = opensearch_client.get(index=opensearch_datasets_name, id=str(package["id"]))["_source"]
     assert indexed["licence_custom"] is None
+
+
+CONTACT_FIELDS = [
+    ("contact-email", "contact_email"),
+    ("foi-email", "foi_email"),
+    ("foi-web", "foi_web"),
+]
+
+
+@pytest.mark.parametrize(("extra_key", "indexed_field"), CONTACT_FIELDS)
+def test_index_opensearch_indexes_contact_from_package_extras(
+    extra_key,
+    indexed_field,
+    collection_factory,
+    package_factory,
+    package_extra_factory,
+    configured_opensearch_client,
+    opensearch_datasets_name,
+):
+    package, _ = package_factory()
+    package_extra_factory(package["id"], key=extra_key, value="package-value")
+    opensearch_client = configured_opensearch_client
+
+    opensearch.index_opensearch()
+
+    indexed = opensearch_client.get(index=opensearch_datasets_name, id=str(package["id"]))["_source"]
+    assert indexed[indexed_field] == "package-value"
+
+
+@pytest.mark.parametrize(("extra_key", "indexed_field"), CONTACT_FIELDS)
+def test_index_opensearch_falls_back_to_org_extras_for_contact(
+    extra_key,
+    indexed_field,
+    collection_factory,
+    package_factory,
+    group_extra_factory,
+    configured_opensearch_client,
+    opensearch_datasets_name,
+):
+    package, organisation = package_factory()
+    group_extra_factory(organisation["id"], key=extra_key, value="org-value")
+    opensearch_client = configured_opensearch_client
+
+    opensearch.index_opensearch()
+
+    indexed = opensearch_client.get(index=opensearch_datasets_name, id=str(package["id"]))["_source"]
+    assert indexed[indexed_field] == "org-value"
+
+
+@pytest.mark.parametrize(("extra_key", "indexed_field"), CONTACT_FIELDS)
+def test_index_opensearch_prefers_package_extras_over_org_extras_for_contact(
+    extra_key,
+    indexed_field,
+    collection_factory,
+    package_factory,
+    package_extra_factory,
+    group_extra_factory,
+    configured_opensearch_client,
+    opensearch_datasets_name,
+):
+    package, organisation = package_factory()
+    package_extra_factory(package["id"], key=extra_key, value="package-value")
+    group_extra_factory(organisation["id"], key=extra_key, value="org-value")
+    opensearch_client = configured_opensearch_client
+
+    opensearch.index_opensearch()
+
+    indexed = opensearch_client.get(index=opensearch_datasets_name, id=str(package["id"]))["_source"]
+    assert indexed[indexed_field] == "package-value"
+
+
+def test_index_opensearch_contact_empty_when_no_extras(
+    collection_factory,
+    package_factory,
+    configured_opensearch_client,
+    opensearch_datasets_name,
+):
+    package, _ = package_factory()
+    opensearch_client = configured_opensearch_client
+
+    opensearch.index_opensearch()
+
+    indexed = opensearch_client.get(index=opensearch_datasets_name, id=str(package["id"]))["_source"]
+    assert indexed["contact_email"] is None
+    assert indexed["foi_email"] is None
+    assert indexed["foi_web"] is None
+
+
+def test_index_opensearch_ignores_inactive_org_extras_for_contact(
+    collection_factory,
+    package_factory,
+    group_extra_factory,
+    ckan_connection,
+    configured_opensearch_client,
+    opensearch_datasets_name,
+):
+    package, organisation = package_factory()
+    group_extra = group_extra_factory(organisation["id"], key="contact-email", value="org-value")
+    ckan_connection.execute("UPDATE group_extra SET state = 'deleted' WHERE id = %s", (group_extra["id"],))
+    opensearch_client = configured_opensearch_client
+
+    opensearch.index_opensearch()
+
+    indexed = opensearch_client.get(index=opensearch_datasets_name, id=str(package["id"]))["_source"]
+    assert indexed["contact_email"] is None
+
+
+def test_index_opensearch_org_extras_do_not_duplicate_additional_information(
+    collection_factory,
+    package_factory,
+    package_extra_factory,
+    group_extra_factory,
+    configured_opensearch_client,
+    opensearch_datasets_name,
+):
+    package, organisation = package_factory()
+    package_extra_factory(package["id"], key="guid", value="abc-123")
+    group_extra_factory(organisation["id"], key="contact-email", value="contact@example.com")
+    group_extra_factory(organisation["id"], key="foi-email", value="foi@example.com")
+    opensearch_client = configured_opensearch_client
+
+    opensearch.index_opensearch()
+
+    indexed = opensearch_client.get(index=opensearch_datasets_name, id=str(package["id"]))["_source"]
+    assert indexed["additional_information"] == [{"key": "guid", "value": "abc-123"}]
 
 
 def test_index_opensearch_with_deleted_package_not_indexed(
