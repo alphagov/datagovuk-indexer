@@ -40,14 +40,11 @@ def test_setup_indices_adds_index_templates_successfully(
     datasets_properties = _get_template_properties(opensearch_client, opensearch_datasets_template_name)
     assert datasets_properties["uuid"]["type"] == "keyword"
     assert "collection" not in datasets_properties
-    resource_properties = datasets_properties["resources"]["properties"]
-    assert resource_properties["uuid"]["type"] == "keyword"
-    assert resource_properties["format"]["type"] == "keyword"
-    assert resource_properties["url"] == {
-        "type": "keyword",
-        "index": False,
-        "doc_values": False,
+    assert datasets_properties["resources"]["dynamic"] in {False, "false"}
+    assert datasets_properties["resources"]["properties"] == {
+        "format": {"type": "keyword", "normalizer": "lowercase_normalizer"},
     }
+    assert datasets_properties["additional_information"] == {"type": "object", "enabled": False}
     collections_properties = _get_template_properties(opensearch_client, opensearch_collections_template_name)
     assert collections_properties["uuid"]["type"] == "keyword"
     assert collections_properties["collection"]["type"] == "keyword"
@@ -519,6 +516,29 @@ def test_index_ckan_resources_sorted_by_created_descending(
 
     resources = configured_opensearch_client.get(index=index_name, id=str(package["id"]))["_source"]["resources"]
     assert [r["uuid"] for r in resources] == ["resource-newest", "resource-middle", "resource-oldest"]
+
+
+def test_index_ckan_only_maps_resource_format(
+    package_factory,
+    resource_factory,
+    configured_opensearch_client,
+    opensearch_datasets_name,
+):
+    package, _ = package_factory()
+    resource_factory(package["id"], id="resource-csv", name="Searchable name", format="CSV")
+    index_name = f"{opensearch_datasets_name}-resources"
+
+    opensearch.index_ckan(index_name=index_name)
+    configured_opensearch_client.indices.refresh(index=index_name)
+
+    mapping = configured_opensearch_client.indices.get_mapping(index=index_name)[index_name]["mappings"]
+    assert list(mapping["properties"]["resources"]["properties"]) == ["format"]
+
+    def _hits(query):
+        return configured_opensearch_client.search(index=index_name, body={"query": query})["hits"]["total"]["value"]
+
+    assert _hits({"term": {"resources.format": "csv"}}) == 1
+    assert _hits({"match": {"resources.name": "Searchable"}}) == 0
 
 
 def test_index_opensearch_with_ckan_row_limit_keeps_oldest_packages(
