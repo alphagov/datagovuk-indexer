@@ -63,7 +63,8 @@ def _setup_datasets_index():
         "template": {
             "settings": {
                 "number_of_shards": config.DATASETS_INDEX["settings"]["number_of_shards"],
-                "number_of_replicas": config.DATASETS_INDEX["settings"]["number_of_replicas"],
+                # Bulk index without replicas; the configured count is applied in publish_index
+                "number_of_replicas": 0,
                 "analysis": {
                     "normalizer": {
                         "lowercase_normalizer": {
@@ -170,7 +171,8 @@ def _setup_collections_index():
         "template": {
             "settings": {
                 "number_of_shards": config.COLLECTIONS_INDEX["settings"]["number_of_shards"],
-                "number_of_replicas": config.COLLECTIONS_INDEX["settings"]["number_of_replicas"],
+                # Bulk index without replicas; the configured count is applied in publish_index
+                "number_of_replicas": 0,
                 "analysis": {
                     "normalizer": {
                         "lowercase_normalizer": {
@@ -508,7 +510,11 @@ def index_opensearch(ckan_row_limit=None, ckan_created_since: date | None = None
         logger.error("Failed to index collections.")
         delete_index(collections_index_name)
         return False
-    publish_index(index_name=collections_index_name, index_alias=config.COLLECTIONS_INDEX["name"])
+    publish_index(
+        index_name=collections_index_name,
+        index_alias=config.COLLECTIONS_INDEX["name"],
+        number_of_replicas=config.COLLECTIONS_INDEX["settings"]["number_of_replicas"],
+    )
 
     if config.FEATURE_FLAG_INDEX_CKAN:
         datasets_index_name = f"{config.DATASETS_INDEX['name']}-{index_suffix}"
@@ -521,7 +527,11 @@ def index_opensearch(ckan_row_limit=None, ckan_created_since: date | None = None
             logger.error("Failed to index CKAN datasets/packages.")
             delete_index(datasets_index_name)
             return False
-        publish_index(index_name=datasets_index_name, index_alias=config.DATASETS_INDEX["name"])
+        publish_index(
+            index_name=datasets_index_name,
+            index_alias=config.DATASETS_INDEX["name"],
+            number_of_replicas=config.DATASETS_INDEX["settings"]["number_of_replicas"],
+        )
 
     return True
 
@@ -532,9 +542,13 @@ def delete_index(index_name):
     logger.info("Index %s deleted.", index_name)
 
 
-def publish_index(index_name, index_alias):
-    logger.info("Switching alias '%s' to point to new index '%s'...", index_alias, index_name)
+def publish_index(index_name, index_alias, number_of_replicas):
     opensearch_client = get_client()
+    logger.info("Setting replicas for index '%s' to %s...", index_name, number_of_replicas)
+    opensearch_client.indices.put_settings(index=index_name, body={"index": {"number_of_replicas": number_of_replicas}})
+    opensearch_client.cluster.health(index=index_name, wait_for_status="yellow")
+
+    logger.info("Switching alias '%s' to point to new index '%s'...", index_alias, index_name)
     alias_body = {
         "actions": [
             {"remove": {"index": f"{index_alias}-*", "alias": index_alias}},
