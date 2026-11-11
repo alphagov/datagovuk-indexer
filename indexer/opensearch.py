@@ -117,39 +117,18 @@ def _setup_datasets_index():
                     },
                     "resources": {
                         "type": "object",
+                        # Only format is queried; other resource fields are kept in _source only
+                        "dynamic": False,
                         "properties": {
-                            "uuid": {"type": "keyword"},
-                            "name": {
-                                "type": "text",
-                                "fields": {
-                                    "keyword": {"type": "keyword", "ignore_above": 256},
-                                    "english": {"type": "text", "analyzer": "english"},
-                                },
-                            },
-                            "description": {
-                                "type": "text",
-                                "fields": {
-                                    "keyword": {"type": "keyword", "ignore_above": 256},
-                                    "english": {"type": "text", "analyzer": "english"},
-                                },
-                            },
                             "format": {"type": "keyword", "normalizer": "lowercase_normalizer"},
-                            "url": {
-                                "type": "keyword",
-                                "index": False,
-                                "doc_values": False,
-                            },
-                            "resource_type": {"type": "keyword"},
                         },
                     },
                     "created_at": {"type": "date"},
                     "updated_at": {"type": "date"},
+                    # Returned in _source only; never searched or filtered
                     "additional_information": {
-                        "type": "nested",
-                        "properties": {
-                            "key": {"type": "keyword"},
-                            "value": {"type": "text"},
-                        },
+                        "type": "object",
+                        "enabled": False,
                     },
                     "is_harvested": {"type": "boolean"},
                 },
