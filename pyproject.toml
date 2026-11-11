@@ -9,22 +9,22 @@ classifiers = [
   "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
-  "boto3==1.43.119",
+  "boto3==1.43.120",
   "django-environ==0.14",
-  "mistune==3.3.4",
+  "mistune==3.4.0",
   "opensearch-py[async]==3.2",
   "psycopg[binary]==3.3.6",
-  "pytest-asyncio==1.4",
+  "pytest-asyncio==1.4.1",
   "requests==2.34.2",
-  "selectolax==1.0.1",
+  "selectolax==1.0.2",
 ]
 
 [dependency-groups]
 dev = [
-  "coverage==7.16.2",
+  "coverage==7.17.0",
   "factory-boy==3.3.3",
   "freezegun==1.5.5",
-  "pytest==9.1.1",
+  "pytest==9.2.0",
 ]
 
 [tool.uv]
