@@ -151,6 +151,9 @@ def _setup_datasets_index():
                         },
                     },
                     "licence_custom": {"type": "keyword"},
+                    "contact_email": {"type": "keyword"},
+                    "foi_email": {"type": "keyword"},
+                    "foi_web": {"type": "keyword"},
                 },
             },
         },
@@ -323,13 +326,22 @@ def _get_ckan_query(row_limit=None, created_since=None):
                     jsonb_build_object('key', extra.key, 'value', extra.value)
                 ) FILTER (WHERE extra.key IS NOT NULL),
                 '[]'::jsonb
-            ) AS package_extras
+            ) AS package_extras,
+            COALESCE(
+                jsonb_agg(
+                    jsonb_build_object('key', group_extra.key, 'value', group_extra.value)
+                ) FILTER (WHERE group_extra.key IS NOT NULL),
+                '[]'::jsonb
+            ) AS org_extras
         FROM package AS p
         INNER JOIN "group" AS org ON p.owner_org=org.id
         LEFT JOIN ({active_resources_subquery}) AS r ON r.package_id = p.id
         LEFT JOIN package_extra AS extra ON extra.package_id = p.id
             AND extra.key IS NOT NULL
             AND extra.state = 'active'
+        LEFT JOIN group_extra AS group_extra ON group_extra.group_id = org.id
+            AND group_extra.key IS NOT NULL
+            AND group_extra.state = 'active'
         WHERE p.state='active'
     """  # noqa: S608
     # NOTE: when adjusting CKAN tables to read data from, also adjust `streamlined_tables` variable in justfile
@@ -360,19 +372,24 @@ async def _transform_ckan_row_to_opensearch_dataset(row, index_name):
     stripped_description = await utils.strip_markdown_and_html(notes)
     additional_information = extract_additional_information(row["package_extras"])
 
-    extras = {item["key"]: item["value"] for item in row["package_extras"]}
-    theme_primary = extras.get("theme-primary")
+    package_extras = {item["key"]: item["value"] for item in row["package_extras"]}
+    theme_primary = package_extras.get("theme-primary")
     topic_slug = theme_primary if theme_primary in TOPIC_SLUGS else None
     topic = topic_slug.replace("-", " ").capitalize() if topic_slug else None
 
     is_harvested = bool(additional_information)
 
     licence = LICENCES.get(row["license_id"])
-    licence_custom = extras.get("licence")
+    licence_custom = package_extras.get("licence")
     if licence_custom:
         # Slightly bizarre code to strip out json array format characters from ckan-sourced data
         # TODO: we should review this down the line, but staying consistent with search V1 for now
         licence_custom = licence_custom.replace('"', "").replace("[", "").replace("]", "")
+
+    org_extras = {item["key"]: item["value"] for item in row["org_extras"]}
+    contact_email = package_extras.get("contact-email", org_extras.get("contact-email"))
+    foi_email = package_extras.get("foi-email", org_extras.get("foi-email"))
+    foi_web = package_extras.get("foi-web", org_extras.get("foi-web"))
 
     return {
         "_index": index_name,
@@ -419,6 +436,9 @@ async def _transform_ckan_row_to_opensearch_dataset(row, index_name):
             if licence
             else None,
             "licence_custom": licence_custom,
+            "contact_email": contact_email,
+            "foi_email": foi_email,
+            "foi_web": foi_web,
         },
     }
 

@@ -102,6 +102,19 @@ def create_package_extra(ckan_connection, package_id, key, value):
     return row
 
 
+def create_group_extra(ckan_connection, group_id, key, value):
+    row = {
+        "id": str(uuid.uuid4()),
+        "group_id": group_id,
+        "key": key,
+        "value": value,
+        "state": "active",
+    }
+    cursor = ckan_connection.cursor()
+    insert_postgres_row(cursor=cursor, data=row, table_name="group_extra")
+    return row
+
+
 def create_resource(ckan_connection, package_id, **kwargs):
     resource = ResourceFactory(package_id=package_id, **kwargs)
     cursor = ckan_connection.cursor()

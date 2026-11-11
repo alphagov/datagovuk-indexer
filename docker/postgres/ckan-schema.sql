@@ -17,6 +17,14 @@ CREATE TABLE public."group" (
     is_organization boolean DEFAULT false
 );
 
+CREATE TABLE public.group_extra (
+    id text NOT NULL,
+    group_id text,
+    key text,
+    value text,
+    state text
+);
+
 CREATE TABLE public.package_extra (
     id text NOT NULL,
     package_id text,
