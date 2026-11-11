@@ -318,13 +318,72 @@ def test_publish_index_only_moves_given_alias(
     opensearch_client.indices.create(index=datasets_index)
     opensearch_client.indices.create(index=collections_index)
 
-    opensearch.publish_index(index_name=datasets_index, index_alias=opensearch_datasets_name)
-    opensearch.publish_index(index_name=collections_index, index_alias=opensearch_collections_name)
+    opensearch.publish_index(index_name=datasets_index, index_alias=opensearch_datasets_name, number_of_replicas=0)
+    opensearch.publish_index(
+        index_name=collections_index,
+        index_alias=opensearch_collections_name,
+        number_of_replicas=0,
+    )
 
     datasets_aliases = opensearch_client.indices.get_alias(name=opensearch_datasets_name)
     collections_aliases = opensearch_client.indices.get_alias(name=opensearch_collections_name)
     assert list(datasets_aliases.keys()) == [datasets_index]
     assert list(collections_aliases.keys()) == [collections_index]
+
+
+def _get_number_of_replicas(client, index_name):
+    settings = client.indices.get_settings(index=index_name)
+    return settings[index_name]["settings"]["index"]["number_of_replicas"]
+
+
+def test_new_indices_are_created_without_replicas(
+    configured_opensearch_client,
+    opensearch_datasets_name,
+    opensearch_collections_name,
+):
+    opensearch_client = configured_opensearch_client
+    datasets_index = f"{opensearch_datasets_name}-x"
+    collections_index = f"{opensearch_collections_name}-x"
+    opensearch_client.indices.create(index=datasets_index)
+    opensearch_client.indices.create(index=collections_index)
+
+    assert _get_number_of_replicas(opensearch_client, datasets_index) == "0"
+    assert _get_number_of_replicas(opensearch_client, collections_index) == "0"
+
+
+def test_publish_index_sets_number_of_replicas(
+    configured_opensearch_client,
+    opensearch_datasets_name,
+):
+    opensearch_client = configured_opensearch_client
+    datasets_index = f"{opensearch_datasets_name}-x"
+    opensearch_client.indices.create(index=datasets_index)
+
+    opensearch.publish_index(index_name=datasets_index, index_alias=opensearch_datasets_name, number_of_replicas=1)
+
+    assert _get_number_of_replicas(opensearch_client, datasets_index) == "1"
+
+
+def test_index_opensearch_publishes_with_configured_replicas(
+    collection_factory,
+    package_factory,
+    configured_opensearch_client,
+    opensearch_datasets_name,
+    opensearch_collections_name,
+):
+    package_factory()
+    opensearch_client = configured_opensearch_client
+
+    opensearch.index_opensearch()
+
+    datasets_index = next(iter(opensearch_client.indices.get_alias(name=opensearch_datasets_name)))
+    collections_index = next(iter(opensearch_client.indices.get_alias(name=opensearch_collections_name)))
+    assert _get_number_of_replicas(opensearch_client, datasets_index) == str(
+        config.DATASETS_INDEX["settings"]["number_of_replicas"],
+    )
+    assert _get_number_of_replicas(opensearch_client, collections_index) == str(
+        config.COLLECTIONS_INDEX["settings"]["number_of_replicas"],
+    )
 
 
 def test_index_opensearch_with_ckan_row_limit(
