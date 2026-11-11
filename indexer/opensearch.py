@@ -286,80 +286,82 @@ def parse_resource_type(extras):
 
 def _get_ckan_query(row_limit=None, created_since=None):
     active_resources_subquery = """
-        (
-            SELECT res.package_id, jsonb_agg(
-                jsonb_build_object(
-                    'id', res.id,
-                    'name', res.name,
-                    'description', res.description,
-                    'format', res.format,
-                    'url', res.url,
-                    'extras', res.extras,
-                    'last_modified', res.last_modified,
-                    'metadata_modified', res.metadata_modified,
-                    'created', res.created,
-                    'size', res.size
-                ) ORDER BY res.created DESC, res.id
-            ) AS resources
-            FROM resource as res
-            WHERE res.state = 'active'
-            GROUP BY res.package_id
-        )
-    """
+         SELECT res.package_id, jsonb_agg(
+             jsonb_build_object(
+                 'id', res.id,
+                 'name', res.name,
+                 'description', res.description,
+                 'format', res.format,
+                 'url', res.url,
+                 'extras', res.extras,
+                 'last_modified', res.last_modified,
+                 'metadata_modified', res.metadata_modified,
+                 'created', res.created,
+                 'size', res.size
+             ) ORDER BY res.created DESC, res.id
+         ) AS resources
+         FROM resource AS res
+         WHERE res.state = 'active'
+         GROUP BY res.package_id
+     """
+
+    package_extras_subquery = """
+         SELECT extra.package_id, jsonb_agg(
+             jsonb_build_object('key', extra.key, 'value', extra.value)
+         ) AS package_extras
+         FROM package_extra AS extra
+         WHERE extra.key IS NOT NULL
+             AND extra.state = 'active'
+         GROUP BY extra.package_id
+     """
+
+    org_extras_subquery = """
+         SELECT group_extra.group_id, jsonb_agg(
+             jsonb_build_object('key', group_extra.key, 'value', group_extra.value)
+         ) AS org_extras
+         FROM group_extra
+         WHERE group_extra.key IS NOT NULL
+             AND group_extra.state = 'active'
+         GROUP BY group_extra.group_id
+     """
 
     query = f"""
-        SELECT
-            p.id,
-            p.title,
-            p.name,
-            p.notes,
-            p.metadata_created,
-            p.metadata_modified,
-            p.license_id,
-            org.name AS org_slug,
-            org.id AS org_id,
-            org.title AS org_name,
-            COALESCE(r.resources, '[]'::jsonb) AS resources,
-            COALESCE(
-                jsonb_agg(
-                    jsonb_build_object('key', extra.key, 'value', extra.value)
-                ) FILTER (WHERE extra.key IS NOT NULL),
-                '[]'::jsonb
-            ) AS package_extras,
-            COALESCE(
-                jsonb_agg(
-                    jsonb_build_object('key', group_extra.key, 'value', group_extra.value)
-                ) FILTER (WHERE group_extra.key IS NOT NULL),
-                '[]'::jsonb
-            ) AS org_extras
-        FROM package AS p
-        INNER JOIN "group" AS org ON p.owner_org=org.id
-        LEFT JOIN ({active_resources_subquery}) AS r ON r.package_id = p.id
-        LEFT JOIN package_extra AS extra ON extra.package_id = p.id
-            AND extra.key IS NOT NULL
-            AND extra.state = 'active'
-        LEFT JOIN group_extra AS group_extra ON group_extra.group_id = org.id
-            AND group_extra.key IS NOT NULL
-            AND group_extra.state = 'active'
-        WHERE p.state='active'
-    """  # noqa: S608
+         SELECT
+             p.id,
+             p.title,
+             p.name,
+             p.notes,
+             p.metadata_created,
+             p.metadata_modified,
+             p.license_id,
+             org.name AS org_slug,
+             org.id AS org_id,
+             org.title AS org_name,
+             COALESCE(r.resources, '[]'::jsonb) AS resources,
+             COALESCE(pe.package_extras, '[]'::jsonb) AS package_extras,
+             COALESCE(oe.org_extras, '[]'::jsonb) AS org_extras
+         FROM package AS p
+         INNER JOIN "group" AS org ON p.owner_org = org.id
+         LEFT JOIN ({active_resources_subquery}) AS r ON r.package_id = p.id
+         LEFT JOIN ({package_extras_subquery}) AS pe ON pe.package_id = p.id
+         LEFT JOIN ({org_extras_subquery}) AS oe ON oe.group_id = org.id
+         WHERE p.state = 'active'
+     """  # noqa: S608
     # NOTE: when adjusting CKAN tables to read data from, also adjust `streamlined_tables` variable in justfile
 
     if created_since:
         query += """
-        AND p.metadata_created >= %(created_since)s
-        """
+         AND p.metadata_created >= %(created_since)s
+         """
 
     query += """
-        GROUP BY p.id, p.title, p.name, p.notes, p.metadata_created, p.metadata_modified,
-            org.name, org.id, org.title, r.resources, p.license_id
-        ORDER BY p.metadata_created, p.id
-    """
+         ORDER BY p.metadata_created, p.id
+     """
 
     if row_limit:
         query += f"""
-        LIMIT {row_limit}
-        """
+         LIMIT {row_limit}
+         """
     return query
 
 
