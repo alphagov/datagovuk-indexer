@@ -141,8 +141,10 @@ def test_index_opensearch_indexes_additional_information(
     opensearch.index_opensearch()
 
     indexed = opensearch_client.get(index=opensearch_datasets_name, id=str(package["id"]))["_source"]
-    assert {"key": "guid", "value": "abc-123"} in indexed["additional_information"]
-    assert {"key": "metadata-date", "value": "2026-01-01T00:00:00"} in indexed["additional_information"]
+    assert {"key": "guid", "value": "abc-123", "type": "string"} in indexed["additional_information"]
+    assert {"key": "metadata-date", "value": "2026-01-01T00:00:00", "type": "string"} in indexed[
+        "additional_information"
+    ]
 
 
 def test_index_opensearch_additional_information_empty_when_no_extras(
@@ -777,8 +779,10 @@ def test_extract_additional_information_includes_all_relevant_keys():
         {"key": "harvest_object_id", "value": "harvest-123"},
     ]
     result = opensearch.extract_additional_information(extras)
+    result_by_key = {item["key"]: item for item in result}
     for extra in extras:
-        assert extra in result
+        assert extra["key"] in result_by_key
+        assert result_by_key[extra["key"]]["value"] == extra["value"]
 
 
 def test_extract_additional_information_filters_non_relevant_keys():
@@ -788,7 +792,7 @@ def test_extract_additional_information_filters_non_relevant_keys():
     ]
     result = opensearch.extract_additional_information(extras)
     assert not any(item["key"] == "filtered-out-key" for item in result)
-    assert {"key": "licence", "value": "included"} in result
+    assert {"key": "licence", "value": "included", "type": "string"} in result
 
 
 def test_extract_additional_information_parses_json_values():
@@ -797,8 +801,12 @@ def test_extract_additional_information_parses_json_values():
         {"key": "dataset-reference-date", "value": '[{"type": "test", "value": "2026-01-01"}]'},
     ]
     result = opensearch.extract_additional_information(extras)
-    assert {"key": "access_constraints", "value": '{"key": "value"}'} in result
-    assert {"key": "dataset-reference-date", "value": '[{"type": "test", "value": "2026-01-01"}]'} in result
+    assert {"key": "access_constraints", "value": '{"key": "value"}', "type": "json"} in result
+    assert {
+        "key": "dataset-reference-date",
+        "value": '[{"type": "test", "value": "2026-01-01"}]',
+        "type": "json",
+    } in result
 
 
 def test_extract_additional_information_uses_raw_value_for_invalid_json():
@@ -806,7 +814,7 @@ def test_extract_additional_information_uses_raw_value_for_invalid_json():
         {"key": "access_constraints", "value": "invalid-json"},
     ]
     result = opensearch.extract_additional_information(extras)
-    assert {"key": "access_constraints", "value": "invalid-json"} in result
+    assert {"key": "access_constraints", "value": "invalid-json", "type": "json"} in result
 
 
 def test_extract_additional_information_uses_none_for_invalid_metadata_date():
@@ -814,7 +822,7 @@ def test_extract_additional_information_uses_none_for_invalid_metadata_date():
         {"key": "metadata-date", "value": "invalid-date"},
     ]
     result = opensearch.extract_additional_information(extras)
-    assert {"key": "metadata-date", "value": None} in result
+    assert {"key": "metadata-date", "value": None, "type": "string"} in result
 
 
 def test_extract_additional_information_returns_harvested_false_when_no_additional_information():
@@ -946,3 +954,15 @@ def test_index_opensearch_runs_ckan_when_flag_enabled(
     result = opensearch.index_opensearch()
     assert result is True
     assert configured_opensearch_client.indices.get(index=f"{opensearch_datasets_prefix}*", ignore=[404])
+
+
+def test_extract_additional_information_includes_type():
+    package_extras = [
+        {"key": "metadata-date", "value": "2026-01-01T00:00:00"},
+        {"key": "guid", "value": "test"},
+        {"key": "access_constraints", "value": '{"test-json": 100}'},
+    ]
+    additional_information = opensearch.extract_additional_information(package_extras)
+    assert additional_information[0]["type"] == "string"
+    assert additional_information[1]["type"] == "string"
+    assert additional_information[2]["type"] == "json"

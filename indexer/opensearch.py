@@ -269,7 +269,8 @@ def extract_additional_information(package_extras):
                 value = datetime.fromisoformat(value).isoformat() if value else None
             except ValueError:
                 value = None
-        additional_information.append({"key": key, "value": value})
+        additional_information_data_type = "json" if key in ADDITIONAL_INFO_JSON_VALUE_KEYS else "string"
+        additional_information.append({"key": key, "value": value, "type": additional_information_data_type})
     return additional_information
 
 
