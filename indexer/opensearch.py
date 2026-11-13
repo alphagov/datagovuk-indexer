@@ -418,11 +418,11 @@ async def _transform_ckan_row_to_opensearch_dataset(row, index_name):
                     "uuid": resource["id"],
                     "name": resource["name"],
                     "description": resource["description"],
-                    "format": resource["format"],
+                    "format": (resource["format"] or "").strip().removeprefix(".").removesuffix(".").upper(),
                     "url": resource["url"],
                     "resource_type": parse_resource_type(resource["extras"]),
                     "size": resource["size"],
-                    "created": resource["created"],
+                    "created_at": resource["created"] or row["metadata_created"],
                     "last_modified": resource["last_modified"],
                     "metadata_modified": resource["metadata_modified"],
                 }
