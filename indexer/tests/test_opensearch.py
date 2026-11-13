@@ -471,7 +471,7 @@ def test_index_opensearch_org_extras_do_not_duplicate_additional_information(
     opensearch.index_opensearch()
 
     indexed = opensearch_client.get(index=opensearch_datasets_name, id=str(package["id"]))["_source"]
-    assert indexed["additional_information"] == [{"key": "guid", "value": "abc-123"}]
+    assert indexed["additional_information"] == [{"key": "guid", "value": "abc-123", "type": "string"}]
 
 
 def test_index_opensearch_with_deleted_package_not_indexed(
@@ -766,7 +766,7 @@ def test_index_ckan_indexes_active_resources(
             "url": support_document["url"],
             "resource_type": "supporting-document",
             "size": support_document["size"],
-            "created": "2026-03-04T05:06:07",
+            "created_at": "2026-03-04T05:06:07",
             "last_modified": "2026-02-03T04:05:06",
             "metadata_modified": "2026-01-02T03:04:05",
         },
@@ -778,7 +778,7 @@ def test_index_ckan_indexes_active_resources(
             "url": data_link["url"],
             "resource_type": "data-link",
             "size": data_link["size"],
-            "created": "2026-01-02T03:04:05",
+            "created_at": "2026-01-02T03:04:05",
             "last_modified": "2026-04-05T06:07:08",
             "metadata_modified": "2026-02-03T04:05:06",
         },
@@ -789,6 +789,22 @@ def test_index_ckan_indexes_active_resources(
         id=str(package_two["id"]),
     )["_source"]
     assert indexed_package_without_active_resources["resources"] == []
+
+
+def test_index_ckan_resource_created_falls_back_to_dataset_metadata_created(
+    package_factory,
+    resource_factory,
+    configured_opensearch_client,
+    opensearch_datasets_name,
+):
+    package, _ = package_factory(metadata_created=datetime(2026, 1, 1, tzinfo=UTC))
+    resource_factory(package["id"], created=None)
+    index_name = f"{opensearch_datasets_name}-resources"
+
+    opensearch.index_ckan(index_name=index_name)
+
+    indexed_package = configured_opensearch_client.get(index=index_name, id=str(package["id"]))["_source"]
+    assert indexed_package["resources"][0]["created_at"] == "2026-01-01T00:00:00"
 
 
 def test_index_ckan_resources_sorted_by_created_descending(
@@ -830,6 +846,29 @@ def test_index_ckan_only_maps_resource_format(
 
     assert _hits({"term": {"resources.format": "csv"}}) == 1
     assert _hits({"match": {"resources.name": "Searchable"}}) == 0
+
+
+def test_index_ckan_normalises_resource_format(
+    package_factory,
+    resource_factory,
+    configured_opensearch_client,
+    opensearch_datasets_name,
+):
+    package, _ = package_factory()
+    resource_factory(package["id"], id="dotted", format=".csv.")
+    resource_factory(package["id"], id="lowercase", format="csv")
+    resource_factory(package["id"], id="padded", format=" CSV ")
+    resource_factory(package["id"], id="empty", format="")
+    index_name = f"{opensearch_datasets_name}-resources"
+
+    opensearch.index_ckan(index_name=index_name)
+
+    indexed = configured_opensearch_client.get(index=index_name, id=str(package["id"]))["_source"]
+    formats = {r["uuid"]: r["format"] for r in indexed["resources"]}
+    assert formats["dotted"] == "CSV"
+    assert formats["lowercase"] == "CSV"
+    assert formats["padded"] == "CSV"
+    assert formats["empty"] == ""
 
 
 def test_index_opensearch_with_ckan_row_limit_keeps_oldest_packages(
