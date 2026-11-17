@@ -9,11 +9,11 @@ classifiers = [
   "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
-  "boto3==1.43.121",
+  "boto3==1.43.123",
   "django-environ==0.14",
   "mistune==3.4",
   "opensearch-py[async]==3.2",
-  "psycopg[binary]==3.3.6",
+  "psycopg[binary]==3.3.7",
   "pytest-asyncio==1.4.1",
   "requests==2.34.2",
   "selectolax==1.0.2",
