@@ -123,7 +123,7 @@ def _setup_datasets_index():
                         },
                     },
                     "resources": {
-                        "type": "object",
+                        "type": "nested",
                         # Only format is queried; other resource fields are kept in _source only
                         "dynamic": False,
                         "properties": {
