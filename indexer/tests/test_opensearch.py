@@ -40,6 +40,7 @@ def test_setup_indices_adds_index_templates_successfully(
     datasets_properties = _get_template_properties(opensearch_client, opensearch_datasets_template_name)
     assert datasets_properties["uuid"]["type"] == "keyword"
     assert "collection" not in datasets_properties
+    assert datasets_properties["resources"]["type"] == "nested"
     assert datasets_properties["resources"]["dynamic"] in {False, "false"}
     assert datasets_properties["resources"]["properties"] == {
         "format": {"type": "keyword", "normalizer": "lowercase_normalizer"},
@@ -842,7 +843,8 @@ def test_index_ckan_only_maps_resource_format(
     assert list(mapping["properties"]["resources"]["properties"]) == ["format"]
 
     def _hits(query):
-        return configured_opensearch_client.search(index=index_name, body={"query": query})["hits"]["total"]["value"]
+        body = {"query": {"nested": {"path": "resources", "query": query}}}
+        return configured_opensearch_client.search(index=index_name, body=body)["hits"]["total"]["value"]
 
     assert _hits({"term": {"resources.format": "csv"}}) == 1
     assert _hits({"match": {"resources.name": "Searchable"}}) == 0
