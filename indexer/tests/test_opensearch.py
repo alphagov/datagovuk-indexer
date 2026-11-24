@@ -784,6 +784,7 @@ def test_index_ckan_indexes_active_resources(
             "metadata_modified": "2026-02-03T04:05:06",
         },
     ]
+    assert indexed_package["resources_count"] == 2  # noqa: PLR2004
 
     indexed_package_without_active_resources = configured_opensearch_client.get(
         index=index_name,
