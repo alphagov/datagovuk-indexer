@@ -130,6 +130,7 @@ def _setup_datasets_index():
                             "format": {"type": "keyword", "normalizer": "lowercase_normalizer"},
                         },
                     },
+                    "resources_count": {"type": "integer"},
                     "created_at": {"type": "date"},
                     "updated_at": {"type": "date"},
                     # Returned in _source only; never searched or filtered
@@ -428,6 +429,7 @@ async def _transform_ckan_row_to_opensearch_dataset(row, index_name):
                 }
                 for resource in row["resources"]
             ],
+            "resources_count": len(row["resources"]),
             "additional_information": additional_information,
             "is_harvested": is_harvested,
             "licence": {
