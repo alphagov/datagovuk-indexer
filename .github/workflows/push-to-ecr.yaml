@@ -1,22 +1,21 @@
-name: Build and push indexer to integration ECR
+name: Build and push indexer to ECR
 
 on:
   push:
     branches:
       - main
-    paths:
-      - "indexer/**"
-      - "config/**"
-      - "docker/**"
-      - "pyproject.toml"
-      - "uv.lock"
-      - ".github/workflows/push-to-integration-ecr.yaml"
+    paths-ignore:
+      - "README.md"
+      - "justfile"
+      - "docker-compose.local.yml"
+      - ".pre-commit-config.yaml"
+      - ".gitignore"
+      - ".github/workflows/ci.yml"
   workflow_dispatch:
 
 env:
   APP_NAME: datagovuk-indexer
   AWS_REGION: eu-west-2
-  ECS_CLUSTER_INTEGRATION: integration
 
 jobs:
   ci:
@@ -24,10 +23,14 @@ jobs:
     uses: ./.github/workflows/ci.yml
 
   build-and-push:
-    name: Build and push indexer to integration ECR
+    name: Build and push indexer to ${{ matrix.environment }} ECR
     needs: ci
     runs-on: ubuntu-latest
-    environment: integration
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [integration, staging] # add production with a reviewer gate in settings -> environment -> production later
+    environment: ${{ matrix.environment }}
     permissions:
       id-token: write
       contents: read
@@ -41,7 +44,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6.3.0
         with:
-          role-to-assume: ${{ secrets.INTEGRATION_DEPLOYER_ROLE_ARN }}
+          role-to-assume: ${{ secrets[format('{0}_DEPLOYER_ROLE_ARN', matrix.environment)] }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
@@ -62,7 +65,7 @@ jobs:
       - name: Download current task definition
         run: |
           aws ecs describe-task-definition \
-            --task-definition integration-${{ env.APP_NAME }} \
+            --task-definition ${{ matrix.environment }}-${{ env.APP_NAME }} \
             --region ${{ env.AWS_REGION }} \
             --query 'taskDefinition' \
             --output json > /tmp/td.json
