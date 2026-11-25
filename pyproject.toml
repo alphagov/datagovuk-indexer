@@ -102,6 +102,9 @@ lint.per-file-ignores."indexer/tests/*" = [
 lint.isort.combine-as-imports = true
 lint.isort.force-single-line = false
 
+[tool.pyproject-fmt]
+keep_full_version = true
+
 [tool.coverage]
 # ==== Coverage ====
 run.include = [ "indexer/**" ]
