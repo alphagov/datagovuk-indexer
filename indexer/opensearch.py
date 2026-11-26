@@ -210,6 +210,7 @@ def _setup_collections_index():
                             "keyword": {"type": "keyword", "ignore_above": 256},
                         },
                     },
+                    "topic_slug": {"type": "keyword"},
                     "organisations": {
                         "type": "object",
                         "properties": {
@@ -229,6 +230,8 @@ def _setup_collections_index():
                     },
                     "created_at": {"type": "date"},
                     "updated_at": {"type": "date"},
+                    "keywords": {"type": "keyword"},
+                    "formats": {"type": "keyword", "normalizer": "lowercase_normalizer"},
                 },
             },
         },
@@ -527,7 +530,10 @@ def get_collections(index_name):
                         "description_raw": topic["description"],
                         "organisations": [],
                         "created_at": "2024-06-06T00:00:00Z",
-                        "updated_at": topic["page-last-updated"],
+                        "updated_at": topic["page-last-reviewed"],
+                        "topic_slug": topic["topic"],
+                        "keywords": topic["keywords"],
+                        "formats": topic["formats"],
                     },
                 ),
             }

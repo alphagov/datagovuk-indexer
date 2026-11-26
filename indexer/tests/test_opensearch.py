@@ -61,6 +61,9 @@ def test_setup_indices_adds_index_templates_successfully(
     collections_properties = _get_template_properties(opensearch_client, opensearch_collections_template_name)
     assert collections_properties["uuid"]["type"] == "keyword"
     assert collections_properties["collection"]["type"] == "keyword"
+    assert collections_properties["topic_slug"] == {"type": "keyword"}
+    assert collections_properties["keywords"] == {"type": "keyword"}
+    assert collections_properties["formats"] == {"type": "keyword", "normalizer": "lowercase_normalizer"}
 
 
 def _get_utc(dt):
@@ -122,7 +125,10 @@ def test_index_opensearch_correctly(
     assert indexed_collection["description"] == "Test description"
     assert indexed_collection["description_raw"] == topic["description"]
     assert indexed_collection["organisations"] == []
-    assert indexed_collection["updated_at"] == topic["page-last-updated"]
+    assert indexed_collection["updated_at"] == topic["page-last-reviewed"]
+    assert indexed_collection["topic_slug"] == topic["topic"]
+    assert indexed_collection["keywords"] == topic["keywords"]
+    assert indexed_collection["formats"] == topic["formats"]
 
     with pytest.raises(opensearchpy.exceptions.NotFoundError):
         opensearch_client.get(index=opensearch_datasets_name, id=str(topic_uuid))
@@ -1030,6 +1036,32 @@ def test_mapping_collections_from_json(mock_get_collections, collections_with_to
     assert result[0]["_source"]["created_at"] == "2024-06-06T00:00:00Z"
     assert result[0]["_source"]["updated_at"] == "2026-08-28T00:00:00Z"
     assert result[0]["_source"]["collection"] == "collection-name"
+    assert result[0]["_source"]["topic_slug"] == "business-and-economy"
+    assert result[0]["_source"]["keywords"] == ["economy", "trade"]
+    assert result[0]["_source"]["formats"] == ["CSV", "PDF"]
+
+
+def test_index_collections_filterable_by_topic_keywords_and_formats(
+    collection_factory,
+    configured_opensearch_client,
+    opensearch_collections_prefix,
+):
+    index_name = f"{opensearch_collections_prefix}filters"
+
+    opensearch.index_collections(index_name=index_name)
+    configured_opensearch_client.indices.refresh(index=index_name)
+
+    def _hits(query):
+        body = {"query": query}
+        return configured_opensearch_client.search(index=index_name, body=body)["hits"]["total"]["value"]
+
+    assert _hits({"term": {"topic_slug": "business-and-economy"}}) == 1
+    assert _hits({"term": {"topic_slug": "business"}}) == 0
+    assert _hits({"term": {"keywords": "trade"}}) == 1
+    assert _hits({"term": {"keywords": "Trade"}}) == 0
+    assert _hits({"term": {"formats": "csv"}}) == 1
+    assert _hits({"term": {"formats": "PDF"}}) == 1
+    assert _hits({"term": {"formats": "xls"}}) == 0
 
 
 def test_get_async_client_no_opensearch_url_raises_exception():
