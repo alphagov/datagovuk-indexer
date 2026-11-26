@@ -509,14 +509,50 @@ async def _opensearch_index_ckan(index_name, row_limit=None, created_since=None)
         }
 
 
+async def _fetch_ckan_organisations():
+    query = """
+        SELECT id, name, title
+        FROM "group"
+        WHERE is_organization = TRUE
+            AND state = 'active'
+    """
+    async with await database.connect(row_factory=dict_row) as pg_conn, pg_conn.cursor() as cursor:
+        await cursor.execute(query)
+        return await cursor.fetchall()
+
+
+def get_ckan_organisations_by_slug():
+    organisations = asyncio.run(_fetch_ckan_organisations())
+    return {organisation["name"]: organisation for organisation in organisations}
+
+
+def _get_collection_organisations(topic, organisations_by_slug):
+    organisations = []
+    for slug in topic["organisations"]:
+        organisation = organisations_by_slug.get(slug)
+        if not organisation:
+            logger.warning("Unknown organisation '%s' in collection topic '%s'", slug, topic["slug"])
+            continue
+        organisations.append(
+            {
+                "uuid": organisation["id"],
+                "name": organisation["title"],
+                "slug": slug,
+            },
+        )
+    return organisations
+
+
 def get_collections(index_name):
     collections = get_datagovuk_collections()
+    organisations_by_slug = get_ckan_organisations_by_slug()
     # TODO: created_at requires a date and for now we are using a fixed date as a placeholder
     for collection in collections:
         collection_name = collection["name"]
         for topic in collection.get("topics", []):
             topic_uuid = uuid5(config.NAMESPACE_UUID, collection_name + topic["slug"])
             stripped_description = utils.strip_markdown_html(topic["description"])
+            organisations = _get_collection_organisations(topic, organisations_by_slug)
             yield {
                 "_index": index_name,
                 "_id": str(topic_uuid),
@@ -528,7 +564,7 @@ def get_collections(index_name):
                         "slug": topic["slug"],
                         "description": stripped_description,
                         "description_raw": topic["description"],
-                        "organisations": [],
+                        "organisations": organisations,
                         "created_at": "2024-06-06T00:00:00Z",
                         "updated_at": topic["page-last-reviewed"],
                         "topic_slug": topic["topic"],

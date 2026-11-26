@@ -80,6 +80,13 @@ def insert_postgres_row(cursor, data, table_name):
     cursor.execute(query, values)
 
 
+def create_organisation(ckan_connection, **kwargs):
+    organisation = OrganisationFactory(**kwargs)
+    cursor = ckan_connection.cursor()
+    insert_postgres_row(cursor=cursor, data=organisation, table_name="group")
+    return organisation
+
+
 def create_package(ckan_connection, **kwargs):
     organisation = OrganisationFactory()
     package = PackageFactory(**kwargs, org=organisation)
