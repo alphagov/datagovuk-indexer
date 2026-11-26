@@ -51,7 +51,21 @@ jobs:
         id: ecr-login
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Check if image tag exists
+        id: check-tag
+        run: |
+          if aws ecr describe-images \
+              --repository-name ${{ env.APP_NAME }} \
+              --image-ids imageTag=${{ github.sha }} \
+              --region ${{ env.AWS_REGION }} > /dev/null 2>&1; then
+            echo "::notice::Image ${{ env.APP_NAME }}:${{ github.sha }} already exists in ${{ matrix.environment }} ECR. Skipping."
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build and push to ECR
+        if: steps.check-tag.outputs.exists == 'false'
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -63,6 +77,7 @@ jobs:
           cache-to: type=inline
 
       - name: Download current task definition
+        if: steps.check-tag.outputs.exists == 'false'
         run: |
           aws ecs describe-task-definition \
             --task-definition ${{ matrix.environment }}-${{ env.APP_NAME }} \
@@ -72,12 +87,14 @@ jobs:
           jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy, .deregisteredAt)' /tmp/td.json > task-definition.json
 
       - name: Update task definition with new image
+        if: steps.check-tag.outputs.exists == 'false'
         run: |
           jq --arg image "${{ steps.ecr-login.outputs.registry }}/${{ env.APP_NAME }}:${{ github.sha }}" \
             '.containerDefinitions[0].image = $image' \
             task-definition.json > task-definition-updated.json
 
       - name: Register new task definition
+        if: steps.check-tag.outputs.exists == 'false'
         run: |
           aws ecs register-task-definition \
             --cli-input-json file://task-definition-updated.json \
