@@ -905,6 +905,42 @@ def test_index_ckan_indexes_unique_resources_formats(
     assert _hits({"term": {"resources_formats": "XML"}}) == 0
 
 
+def test_index_ckan_maps_resource_format_aliases(
+    package_factory,
+    resource_factory,
+    configured_opensearch_client,
+    opensearch_datasets_name,
+):
+    package, _ = package_factory()
+    resource_factory(package["id"], id="xlsx", format="xlsx")
+    resource_factory(package["id"], id="excel", format="Excel")
+    resource_factory(package["id"], id="tsv", format=".tsv")
+    resource_factory(package["id"], id="webpage", format="Web Page")
+    resource_factory(package["id"], id="unknown", format="docx")
+    index_name = f"{opensearch_datasets_name}-resources"
+
+    opensearch.index_ckan(index_name=index_name)
+    configured_opensearch_client.indices.refresh(index=index_name)
+
+    indexed = configured_opensearch_client.get(index=index_name, id=str(package["id"]))["_source"]
+    formats = {r["uuid"]: r["format"] for r in indexed["resources"]}
+    assert formats == {
+        "xlsx": "XLS",
+        "excel": "XLS",
+        "tsv": "CSV",
+        "webpage": "HTML",
+        "unknown": "OTHER",
+    }
+    assert sorted(indexed["resources_formats"]) == ["CSV", "HTML", "OTHER", "XLS"]
+
+    def _hits(query):
+        body = {"query": query}
+        return configured_opensearch_client.search(index=index_name, body=body)["hits"]["total"]["value"]
+
+    assert _hits({"term": {"resources_formats": "xls"}}) == 1
+    assert _hits({"term": {"resources_formats": "xlsx"}}) == 0
+
+
 def test_index_opensearch_with_ckan_row_limit_keeps_oldest_packages(
     collection_factory,
     package_factory,
