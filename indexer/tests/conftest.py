@@ -7,7 +7,7 @@ from opensearchpy import OpenSearch
 from config import config
 from indexer import opensearch
 
-from .factories import create_group_extra, create_package, create_package_extra, create_resource
+from .factories import create_group_extra, create_organisation, create_package, create_package_extra, create_resource
 
 
 @pytest.fixture
@@ -108,6 +108,14 @@ def ckan_connection(postgres_dsn):
 
 
 @pytest.fixture
+def organisation_factory(ckan_connection):
+    def _create(**kwargs):
+        return create_organisation(ckan_connection, **kwargs)
+
+    return _create
+
+
+@pytest.fixture
 def package_factory(ckan_connection):
     def _create(**kwargs):
         return create_package(ckan_connection, **kwargs)
@@ -149,7 +157,11 @@ def collections_with_topics():
                     "slug": "test-topic",
                     "title": "test topic",
                     "description": "Test <p>description</p>",
-                    "page-last-updated": "2026-08-28T00:00:00Z",
+                    "page-last-reviewed": "2026-08-28T00:00:00Z",
+                    "topic": "business-and-economy",
+                    "formats": ["CSV", "PDF"],
+                    "keywords": ["economy", "trade"],
+                    "organisations": [],
                 },
             ],
         },

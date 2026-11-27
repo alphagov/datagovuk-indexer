@@ -61,6 +61,9 @@ def test_setup_indices_adds_index_templates_successfully(
     collections_properties = _get_template_properties(opensearch_client, opensearch_collections_template_name)
     assert collections_properties["uuid"]["type"] == "keyword"
     assert collections_properties["collection"]["type"] == "keyword"
+    assert collections_properties["topic_slug"] == {"type": "keyword"}
+    assert collections_properties["keywords"] == {"type": "keyword"}
+    assert collections_properties["formats"] == {"type": "keyword", "normalizer": "lowercase_normalizer"}
 
 
 def _get_utc(dt):
@@ -122,7 +125,10 @@ def test_index_opensearch_correctly(
     assert indexed_collection["description"] == "Test description"
     assert indexed_collection["description_raw"] == topic["description"]
     assert indexed_collection["organisations"] == []
-    assert indexed_collection["updated_at"] == topic["page-last-updated"]
+    assert indexed_collection["updated_at"] == topic["page-last-reviewed"]
+    assert indexed_collection["topic_slug"] == topic["topic"]
+    assert indexed_collection["keywords"] == topic["keywords"]
+    assert indexed_collection["formats"] == topic["formats"]
 
     with pytest.raises(opensearchpy.exceptions.NotFoundError):
         opensearch_client.get(index=opensearch_datasets_name, id=str(topic_uuid))
@@ -1021,7 +1027,7 @@ def test_index_ckan_logs_warning_on_failure(failing_bulk_index, caplog, package_
 
 
 @patch("indexer.opensearch.get_datagovuk_collections", return_value=[])
-def test_mapping_collections_from_json(mock_get_collections, collections_with_topics):
+def test_get_collections_maps_topic_fields(mock_get_collections, collections_with_topics):
     mock_get_collections.return_value = collections_with_topics
     result = list(opensearch.get_collections(index_name="collections-test-2026-01-01t00.00.00+00.00"))
     assert result[0]["_source"]["title"] == "test topic"
@@ -1030,6 +1036,132 @@ def test_mapping_collections_from_json(mock_get_collections, collections_with_to
     assert result[0]["_source"]["created_at"] == "2024-06-06T00:00:00Z"
     assert result[0]["_source"]["updated_at"] == "2026-08-28T00:00:00Z"
     assert result[0]["_source"]["collection"] == "collection-name"
+    assert result[0]["_source"]["topic_slug"] == "business-and-economy"
+    assert result[0]["_source"]["keywords"] == ["economy", "trade"]
+    assert result[0]["_source"]["formats"] == ["CSV", "PDF"]
+
+
+def test_get_ckan_organisations_by_slug_returns_active_organisations(organisation_factory):
+    organisation = organisation_factory()
+    organisation_factory(state="deleted")
+    organisation_factory(is_organization=False, type="group")
+
+    result = opensearch.get_ckan_organisations_by_slug()
+
+    assert result == {
+        organisation["name"]: {
+            "id": organisation["id"],
+            "name": organisation["name"],
+            "title": organisation["title"],
+        },
+    }
+
+
+def test_get_ckan_organisations_by_slug_returns_empty_dict_when_no_organisations():
+    assert opensearch.get_ckan_organisations_by_slug() == {}
+
+
+@patch("indexer.opensearch.get_datagovuk_collections")
+def test_get_collections_includes_organisations(
+    mock_get_collections,
+    collections_with_topics,
+    organisation_factory,
+):
+    org_1 = organisation_factory()
+    org_2 = organisation_factory()
+    collections_with_topics[0]["topics"][0]["organisations"] = [org_1["name"], org_2["name"]]
+    mock_get_collections.return_value = collections_with_topics
+
+    result = list(opensearch.get_collections(index_name="collections-test-2026-01-01t00.00.00+00.00"))
+
+    assert result[0]["_source"]["organisations"] == [
+        {"uuid": org_1["id"], "name": org_1["title"], "slug": org_1["name"]},
+        {"uuid": org_2["id"], "name": org_2["title"], "slug": org_2["name"]},
+    ]
+
+
+@patch("indexer.opensearch.get_datagovuk_collections")
+def test_get_collections_skips_unknown_organisations(
+    mock_get_collections,
+    collections_with_topics,
+    organisation_factory,
+    caplog,
+):
+    organisation = organisation_factory()
+    deleted_organisation = organisation_factory(state="deleted")
+    collections_with_topics[0]["topics"][0]["organisations"] = [
+        organisation["name"],
+        deleted_organisation["name"],
+        "does-not-exist",
+    ]
+    mock_get_collections.return_value = collections_with_topics
+
+    result = list(opensearch.get_collections(index_name="collections-test-2026-01-01t00.00.00+00.00"))
+
+    assert result[0]["_source"]["organisations"] == [
+        {"uuid": organisation["id"], "name": organisation["title"], "slug": organisation["name"]},
+    ]
+    assert f"Unknown organisation '{deleted_organisation['name']}' in collection topic 'test-topic'" in caplog.text
+    assert "Unknown organisation 'does-not-exist' in collection topic 'test-topic'" in caplog.text
+
+
+@patch("indexer.opensearch.get_datagovuk_collections")
+def test_get_collections_organisations_empty_when_topic_has_no_organisations(
+    mock_get_collections,
+    collections_with_topics,
+):
+    mock_get_collections.return_value = collections_with_topics
+
+    result = list(opensearch.get_collections(index_name="collections-test-2026-01-01t00.00.00+00.00"))
+
+    assert result[0]["_source"]["organisations"] == []
+
+
+def test_index_collections_filterable_by_organisation_slug(
+    collections_with_topics,
+    collection_factory,
+    organisation_factory,
+    configured_opensearch_client,
+    opensearch_collections_prefix,
+):
+    organisation = organisation_factory(name="cabinet-office")
+    collections_with_topics[0]["topics"][0]["organisations"] = [organisation["name"]]
+    index_name = f"{opensearch_collections_prefix}organisations"
+
+    opensearch.index_collections(index_name=index_name)
+    configured_opensearch_client.indices.refresh(index=index_name)
+
+    def _hits(query):
+        body = {"query": query}
+        return configured_opensearch_client.search(index=index_name, body=body)["hits"]["total"]["value"]
+
+    assert _hits({"term": {"organisations.slug": "cabinet-office"}}) == 1
+    assert _hits({"term": {"organisations.slug": "Cabinet-Office"}}) == 1
+    assert _hits({"term": {"organisations.slug": "home-office"}}) == 0
+    assert _hits({"term": {"organisations.uuid": organisation["id"]}}) == 1
+
+
+def test_index_collections_filterable_by_topic_keywords_and_formats(
+    collection_factory,
+    configured_opensearch_client,
+    opensearch_collections_prefix,
+):
+    index_name = f"{opensearch_collections_prefix}filters"
+
+    opensearch.index_collections(index_name=index_name)
+    configured_opensearch_client.indices.refresh(index=index_name)
+
+    def _hits(query):
+        body = {"query": query}
+        return configured_opensearch_client.search(index=index_name, body=body)["hits"]["total"]["value"]
+
+    assert _hits({"term": {"topic_slug": "business-and-economy"}}) == 1
+    assert _hits({"term": {"topic_slug": "business"}}) == 0
+    assert _hits({"term": {"keywords": "trade"}}) == 1
+    assert _hits({"term": {"keywords": "Trade"}}) == 0
+    assert _hits({"term": {"formats": "csv"}}) == 1
+    assert _hits({"term": {"formats": "PDF"}}) == 1
+    assert _hits({"term": {"formats": "xls"}}) == 0
 
 
 def test_get_async_client_no_opensearch_url_raises_exception():
