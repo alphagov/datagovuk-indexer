@@ -1,6 +1,11 @@
 import pytest
 
-from indexer.utils import strip_markdown_and_html
+from indexer.utils import (
+    CANONICAL_FORMATS,
+    FORMAT_MAPPINGS,
+    strip_markdown_and_html,
+    transform_resource_format,
+)
 
 
 @pytest.mark.asyncio
@@ -128,3 +133,71 @@ async def test_strip_markdown_and_html_table():
     assert "Cell 2" in result
     assert "|" not in result
     assert "---" not in result
+
+
+@pytest.mark.parametrize("resource_format", [None, ""])
+def test_transform_resource_format_empty(resource_format):
+    """Missing or empty formats should return an empty string."""
+    assert transform_resource_format(resource_format) == ""
+
+
+@pytest.mark.parametrize("resource_format", CANONICAL_FORMATS)
+def test_transform_resource_format_canonical_formats(resource_format):
+    """Canonical formats should be returned uppercased, whatever case they arrive in."""
+    assert transform_resource_format(resource_format) == resource_format.upper()
+    assert transform_resource_format(resource_format.upper()) == resource_format.upper()
+
+
+@pytest.mark.parametrize(
+    ("resource_format", "expected"),
+    [
+        ("xlsx", "XLS"),
+        ("Excel Spreadsheet", "XLS"),
+        ("csv / zip", "ZIP"),
+        ("TSV", "CSV"),
+        ("kmz", "KML"),
+        ("Web Page", "HTML"),
+        ("ArcGIS Online", "ESRIREST"),
+        ("Shapefile", "SHP"),
+        ("wmts", "WMS"),
+        ("OGC WFS", "WFS"),
+        ("rdf", "XML"),
+        ("json2.0", "JSON"),
+        ("pdf document", "PDF"),
+        ("https://www.iana.org/assignments/media-types/text/csv", "CSV"),
+    ],
+)
+def test_transform_resource_format_maps_aliases(resource_format, expected):
+    """Known aliases should map to their canonical format, case-insensitively."""
+    assert transform_resource_format(resource_format) == expected
+
+
+@pytest.mark.parametrize(
+    "resource_format",
+    [" CSV ", ".csv", "csv.", ".csv.", "\tcsv\n", " .Csv. "],
+)
+def test_transform_resource_format_strips_whitespace_and_dots(resource_format):
+    """Surrounding whitespace and a single leading/trailing dot should be removed."""
+    assert transform_resource_format(resource_format) == "CSV"
+
+
+def test_transform_resource_format_strips_dots_before_mapping():
+    """Dot stripping should happen before the alias lookup."""
+    assert transform_resource_format(".xlsx") == "XLS"
+
+
+@pytest.mark.parametrize("resource_format", ["docx", "parquet", "something unknown", "c s v"])
+def test_transform_resource_format_unknown_formats_are_other(resource_format):
+    """Unrecognised formats should fall back to OTHER."""
+    assert transform_resource_format(resource_format) == "OTHER"
+
+
+def test_format_mappings_only_map_to_canonical_formats():
+    """Every alias must map to a known canonical format."""
+    assert set(FORMAT_MAPPINGS.values()) <= set(CANONICAL_FORMATS)
+
+
+def test_format_mappings_keys_are_normalised():
+    """Mapping keys must already be lowercased and stripped, otherwise they can never match."""
+    for key in FORMAT_MAPPINGS:
+        assert key == key.strip().removeprefix(".").removesuffix(".").lower()
