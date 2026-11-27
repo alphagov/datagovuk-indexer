@@ -45,7 +45,7 @@ def test_setup_indices_adds_index_templates_successfully(
     assert datasets_properties["resources"]["properties"] == {
         "format": {"type": "keyword", "normalizer": "lowercase_normalizer"},
     }
-    assert datasets_properties["resources_formats"] == {"type": "keyword"}
+    assert datasets_properties["resources_formats"] == {"type": "keyword", "normalizer": "lowercase_normalizer"}
     assert datasets_properties["additional_information"] == {"type": "object", "enabled": False}
     licence_properties = datasets_properties["licence"]["properties"]
     assert licence_properties["slug"]["type"] == "keyword"
