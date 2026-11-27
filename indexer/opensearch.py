@@ -595,6 +595,7 @@ def index_opensearch(ckan_row_limit=None, ckan_created_since: date | None = None
         number_of_replicas=config.DATASETS_INDEX["settings"]["number_of_replicas"],
     )
 
+    delete_old_indices()
     return True
 
 
@@ -618,7 +619,27 @@ def publish_index(index_name, index_alias, number_of_replicas):
         ],
     }
     opensearch_client.indices.update_aliases(body=alias_body)
-    logger.info("Alias updated.")
+
+
+def delete_old_indices():
+    opensearch_client = get_client()
+
+    # get list of dataset and collection key indexes
+    dataset_keys = []
+    collection_keys = []
+
+    for key in opensearch_client.indices.get(index='*').keys():
+        if key.startswith("datasets-"):
+            dataset_keys.append(key)
+        elif key.startswith("collections-"):
+            collection_keys.append(key)
+
+    # sort and delete up to the last 2 keys
+    for index in [sorted(collection_keys), sorted(dataset_keys)]:
+        for key in index[:-2]:
+            delete_index(key)
+
+    logger.info(f"Retaining: {collection_keys[-2:]}, {dataset_keys[-2:]}")
 
 
 def clear_opensearch():

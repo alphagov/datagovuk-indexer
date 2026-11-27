@@ -1,5 +1,5 @@
 from datetime import UTC, date, datetime
-from unittest.mock import patch
+from unittest.mock import patch, Mock, call
 from uuid import uuid5
 
 import opensearchpy
@@ -1110,3 +1110,34 @@ def test_extract_additional_information_includes_type():
     assert additional_information[0]["type"] == "string"
     assert additional_information[1]["type"] == "string"
     assert additional_information[2]["type"] == "json"
+
+
+class mock_client:
+    class mock_get:
+        def get(self, index):
+            return {
+                "datasets-2026-11-27t10.00.00+00.00": "1",
+                "datasets-2026-11-27t11.00.00+00.00": "2",
+                "datasets-2026-11-27t12.00.00+00.00": "3",
+                "datasets-2026-11-27t13.00.00+00.00": "7",
+                "collections-2026-11-27t12.00.00+00.00": "4",
+                "collections-2026-11-27t11.00.00+00.00": "5",
+                "collections-2026-11-27t10.00.00+00.00": "6",
+                "collections-2026-11-27t13.00.00+00.00": "9",
+                "other": "8"
+            }
+    indices = mock_get()
+
+@patch("indexer.opensearch.delete_index")
+@patch("indexer.opensearch.get_client", return_value=mock_client())
+def test_delete_old_indices(mocker, mock_delete):
+    opensearch.delete_old_indices() 
+
+    assert mock_delete.call_count == 4
+    calls = [
+        call("collections-2026-11-27t10.00.00+00.00"),
+        call("collections-2026-11-27t11.00.00+00.00"),
+        call("datasets-2026-11-27t10.00.00+00.00"),
+        call("datasets-2026-11-27t11.00.00+00.00"),
+    ]
+    mock_delete.assert_has_calls(calls)
