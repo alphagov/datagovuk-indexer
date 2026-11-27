@@ -40,11 +40,12 @@ def test_setup_indices_adds_index_templates_successfully(
     datasets_properties = _get_template_properties(opensearch_client, opensearch_datasets_template_name)
     assert datasets_properties["uuid"]["type"] == "keyword"
     assert "collection" not in datasets_properties
-    assert datasets_properties["resources"]["type"] == "nested"
+    assert datasets_properties["resources"]["type"] == "object"
     assert datasets_properties["resources"]["dynamic"] in {False, "false"}
     assert datasets_properties["resources"]["properties"] == {
         "format": {"type": "keyword", "normalizer": "lowercase_normalizer"},
     }
+    assert datasets_properties["resources_formats"] == {"type": "keyword"}
     assert datasets_properties["additional_information"] == {"type": "object", "enabled": False}
     licence_properties = datasets_properties["licence"]["properties"]
     assert licence_properties["slug"]["type"] == "keyword"
@@ -785,12 +786,14 @@ def test_index_ckan_indexes_active_resources(
         },
     ]
     assert indexed_package["resources_count"] == 2  # noqa: PLR2004
+    assert indexed_package["resources_formats"] == ["CSV"]
 
     indexed_package_without_active_resources = configured_opensearch_client.get(
         index=index_name,
         id=str(package_two["id"]),
     )["_source"]
     assert indexed_package_without_active_resources["resources"] == []
+    assert indexed_package_without_active_resources["resources_formats"] == []
 
 
 def test_index_ckan_resource_created_falls_back_to_dataset_metadata_created(
@@ -844,7 +847,7 @@ def test_index_ckan_only_maps_resource_format(
     assert list(mapping["properties"]["resources"]["properties"]) == ["format"]
 
     def _hits(query):
-        body = {"query": {"nested": {"path": "resources", "query": query}}}
+        body = {"query": query}
         return configured_opensearch_client.search(index=index_name, body=body)["hits"]["total"]["value"]
 
     assert _hits({"term": {"resources.format": "csv"}}) == 1
@@ -872,6 +875,34 @@ def test_index_ckan_normalises_resource_format(
     assert formats["lowercase"] == "CSV"
     assert formats["padded"] == "CSV"
     assert formats["empty"] == ""
+    assert sorted(indexed["resources_formats"]) == ["", "CSV"]
+
+
+def test_index_ckan_indexes_unique_resources_formats(
+    package_factory,
+    resource_factory,
+    configured_opensearch_client,
+    opensearch_datasets_name,
+):
+    package, _ = package_factory()
+    resource_factory(package["id"], id="csv-one", format="CSV")
+    resource_factory(package["id"], id="csv-two", format="csv")
+    resource_factory(package["id"], id="json", format="JSON")
+    resource_factory(package["id"], id="pdf", format=".pdf")
+    index_name = f"{opensearch_datasets_name}-resources"
+
+    opensearch.index_ckan(index_name=index_name)
+    configured_opensearch_client.indices.refresh(index=index_name)
+
+    indexed = configured_opensearch_client.get(index=index_name, id=str(package["id"]))["_source"]
+    assert sorted(indexed["resources_formats"]) == ["CSV", "JSON", "PDF"]
+
+    def _hits(query):
+        body = {"query": query}
+        return configured_opensearch_client.search(index=index_name, body=body)["hits"]["total"]["value"]
+
+    assert _hits({"term": {"resources_formats": "JSON"}}) == 1
+    assert _hits({"term": {"resources_formats": "XML"}}) == 0
 
 
 def test_index_opensearch_with_ckan_row_limit_keeps_oldest_packages(
