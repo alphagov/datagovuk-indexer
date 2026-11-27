@@ -123,7 +123,7 @@ def _setup_datasets_index():
                         },
                     },
                     "resources": {
-                        "type": "nested",
+                        "type": "object",
                         # Only format is queried; other resource fields are kept in _source only
                         "dynamic": False,
                         "properties": {
@@ -131,6 +131,7 @@ def _setup_datasets_index():
                         },
                     },
                     "resources_count": {"type": "integer"},
+                    "resources_formats": {"type": "keyword", "normalizer": "lowercase_normalizer"},
                     "created_at": {"type": "date"},
                     "updated_at": {"type": "date"},
                     # Returned in _source only; never searched or filtered
@@ -394,6 +395,9 @@ async def _transform_ckan_row_to_opensearch_dataset(row, index_name):
     foi_email = package_extras.get("foi-email", org_extras.get("foi-email"))
     foi_web = package_extras.get("foi-web", org_extras.get("foi-web"))
 
+    def _strip_resource_format(resource_format):
+        return resource_format.strip().removeprefix(".").removesuffix(".").upper()
+
     return {
         "_index": index_name,
         "_id": str(row["id"]),
@@ -419,7 +423,7 @@ async def _transform_ckan_row_to_opensearch_dataset(row, index_name):
                     "uuid": resource["id"],
                     "name": resource["name"],
                     "description": resource["description"],
-                    "format": (resource["format"] or "").strip().removeprefix(".").removesuffix(".").upper(),
+                    "format": _strip_resource_format(resource["format"] or ""),
                     "url": resource["url"],
                     "resource_type": parse_resource_type(resource["extras"]),
                     "size": resource["size"],
@@ -430,6 +434,10 @@ async def _transform_ckan_row_to_opensearch_dataset(row, index_name):
                 for resource in row["resources"]
             ],
             "resources_count": len(row["resources"]),
+            # convert a set comprehension to a list to ensure we record unique resource formats only
+            "resources_formats": list(
+                {_strip_resource_format(resource["format"] or "") for resource in row["resources"]},
+            ),
             "additional_information": additional_information,
             "is_harvested": is_harvested,
             "licence": {
