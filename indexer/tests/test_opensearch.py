@@ -1034,11 +1034,6 @@ def test_extract_additional_information_returns_harvested_false_when_no_addition
     assert result == []
 
 
-def test_transform_context_transforms_nested_list():
-    result = opensearch.transform_context({"test-key": ["test1", "test2"]})
-    assert result == {"test_key": ["test1", "test2"]}
-
-
 def test_index_collections_logs_warning_on_errors(mock_bulk_with_error, caplog, collection_factory):
     opensearch.index_collections(index_name="collections-test-2026-01-01t00.00.00+00.00")
     assert "Failed to index 1 collection documents due to errors" in caplog.text

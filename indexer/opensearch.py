@@ -242,18 +242,6 @@ def _setup_collections_index():
     logger.info("Index template '%s' configured.", template_name)
 
 
-def transform_context(context):
-    """
-    Recursively transform keys frontmatter kebab-case to pythonic underscores, e.g.
-    my-key becomes my_key
-    """
-    if isinstance(context, dict):
-        return {key.lower().replace("-", "_"): transform_context(value) for key, value in context.items()}
-    if isinstance(context, list):
-        return [transform_context(item) for item in context]
-    return context
-
-
 def extract_additional_information(package_extras):
     additional_information = []
     for item in package_extras:
@@ -525,19 +513,17 @@ def get_collections(index_name):
             yield {
                 "_index": index_name,
                 "_id": str(topic_uuid),
-                "_source": transform_context(
-                    {
-                        "title": topic["title"],
-                        "collection": collection_name,
-                        "uuid": topic_uuid,
-                        "slug": topic["slug"],
-                        "description": stripped_description,
-                        "description_raw": topic["description"],
-                        "organisations": [],
-                        "created_at": "2024-06-06T00:00:00Z",
-                        "updated_at": topic["page-last-updated"],
-                    },
-                ),
+                "_source": {
+                    "title": topic["title"],
+                    "collection": collection_name,
+                    "uuid": topic_uuid,
+                    "slug": topic["slug"],
+                    "description": stripped_description,
+                    "description_raw": topic["description"],
+                    "organisations": [],
+                    "created_at": "2024-06-06T00:00:00Z",
+                    "updated_at": topic["page-last-updated"],
+                },
             }
 
 
